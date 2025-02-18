@@ -3,17 +3,34 @@ format longG;
 
 % omnibus script to recreate all Stn ALOHA figures with BATS data.
 
+showOtherTests = false;     % Evaluate data with Lilliefors and chi^2 tests.
+                            % (in addition to Anderson-Darling)
+showL0title = false;        % Leave as 'false' for paper.
 %% BATS. chl-a. Hovmoeller. (Fig 1a)
 
+% Import Data.
 tmp = importdata('data\L0\bats_pigments.txt').data;
+id = tmp(:,1);      % bottle ID with format !####$$$@@, where ! = cruise
+                    % type (1 = core cruise), #### = cruise number, 
+                    % $$$ = cast number, @@ = Niskin number.
+YMD = tmp(:,2);     % Year, Month, and Day.
+hhmm = tmp(:,4);    % hours and minutes.
+QF = tmp(:,7);      % Quality control factor.
+depth = tmp(:,8);           % Depth (m).
+chla = tmp(:,22);           % chl-a concentration (ng/l).
+chla_Turner = tmp(:,24);    % as above but using Turner method (ng/l).
 
-YMD = tmp(:,2);
-hhmm = tmp(:,4);
+% Re-assign NaNs.
+chla(chla==-999) = nan;
+chla_Turner(chla_Turner==-999) = nan;
+
+% Set up time vector.
 for i = 1:length(YMD)
-    tmpA = num2str(YMD(i));
-    YY(i) = str2num(tmpA(1:4));
-    MM(i) = str2num(tmpA(5:6));
-    DD(i) = str2num(tmpA(7:8));
+    tmp1 = num2str(YMD(i));
+    YY(i) = str2num(tmp1(1:4));
+    MM(i) = str2num(tmp1(5:6));
+    DD(i) = str2num(tmp1(7:8));
+    clear tmp1;
 
     tmpB = num2str(hhmm(i));
     if length(tmpB) == 3
@@ -30,51 +47,64 @@ end
 ss = zeros(1,length(mm));
 t = datetime(YY,MM,DD,hh,mm,ss);
 
-QF = tmp(:,7);
-depth = tmp(:,8);
-chla = tmp(:,22);
-chla_Turner = tmp(:,24);
-chla(chla==-999) = nan;
-chla_Turner(chla_Turner==-999) = nan;
-
-% bin by depth
+% Bin by depth.
 edges = 0:10:200;
 depth_B = discretize(depth,edges);
-depth_B(isnan(depth_B)) = 99;
+% depth_B(isnan(depth_B)) = 99;
 
-newCast = [1];
+% Extract cruise type 'cType' and cruise number 'CRN'.
+tmp2 = num2str(id);
+cType = str2num(tmp2(:,1));
+CRN = str2num(tmp2(:,2:5));
+clear tmp2;
 
-for i = 2:length(depth_B)
-    if depth_B(i) < depth_B(i-1)
-        disp(i);
-        newCast = [newCast i];
+% Extract core cruises. These are labelled as cType = 1.
+ids = find(cType==1);
+CoreCRN = CRN(ids);
+t = t(ids);
+chla = chla(ids);
+depth = depth(ids);
+depth_B = depth_B(ids);
+
+% Save ID where new cruise starts.
+id_nc = [1];
+CRN_no = [1];
+for i = 2:length(CoreCRN)
+    if CoreCRN(i) > CoreCRN(i-1)
+        disp(i)
+        id_nc = [id_nc i];
+        CRN_no = [CRN_no CoreCRN(i)];
     end
 end
 
-dgrid = nan(647,20);
-tgrid = NaT(647,20);
-chlagrid = NaN(647,20);
+% Divide up the depth, chlorophyll, and time arrays by cruise.
+% NOTE that there are 405 cruises but only 398 have chl-a data.
+dgrid = nan(398,35);
 
-% First Case.
-dgrid(1,1:(newCast(2)-newCast(1))) = depth_B(newCast(1):newCast(2)-1);
-tgrid(1,1:(newCast(2)-newCast(1))) = t(newCast(1):newCast(2)-1);
-chlagrid(1,1:(newCast(2)-newCast(1))) = chla(newCast(1):newCast(2)-1);
-% Then Loop.
-% i = 2:319
-for i = 2:646
-    dgrid(i,1:(newCast(i+1)-newCast(i))) = depth_B(newCast(i):newCast(i+1)-1);
-    tgrid(i,1:(newCast(i+1)-newCast(i))) = t(newCast(i):newCast(i+1)-1);
-    chlagrid(i,1:(newCast(i+1)-newCast(i))) = chla(newCast(i):newCast(i+1)-1);
-    %pgrid(3,1:(newCast(4)-newCast(3))) = pB(newCast(3):newCast(4)-1);
+% For cruise #1.
+dgrid(1,1:(id_nc(2)-id_nc(1))) = depth_B(id_nc(1):id_nc(2)-1);
+depthUnbinned(1,1:(id_nc(2)-id_nc(1))) = depth(id_nc(1):id_nc(2)-1);
+tgrid(1,1:(id_nc(2)-id_nc(1))) = t(id_nc(1):id_nc(2)-1);
+chlagrid(1,1:(id_nc(2)-id_nc(1))) = chla(id_nc(1):id_nc(2)-1);
+
+% Loop for cruises #2-397.
+for i = 2:397
+    dgrid(i,1:(id_nc(i+1)-id_nc(i))) = depth_B(id_nc(i):id_nc(i+1)-1);
+    depthUnbinned(i,1:(id_nc(i+1)-id_nc(i))) = depth(id_nc(i):id_nc(i+1)-1);
+    tgrid(i,1:(id_nc(i+1)-id_nc(i))) = t(id_nc(i):id_nc(i+1)-1);
+    chlagrid(i,1:(id_nc(i+1)-id_nc(i))) = chla(id_nc(i):id_nc(i+1)-1);
+    %pgrid(3,1:(newCruiseId(4)-newCruiseId(3))) = pB(newCruiseId(3):newCruiseId(4)-1);
 end
 
-% Final Case.
-dgrid(647,1:(length(depth_B)+1-newCast(647))) = depth_B(newCast(647):length(depth_B));
-tgrid(647,1:(length(t)+1-newCast(647))) = t(newCast(647):length(t));
-chlagrid(647,1:(length(chla)+1-newCast(647))) = chla(newCast(647):length(chla));
+% Final cruise (#398).
+dgrid(398,1:(length(depth_B)+1-id_nc(398))) = depth_B(id_nc(398):length(depth_B));
+depthUnbinned(398,1:(length(depth)+1-id_nc(398))) = depth(id_nc(398):length(depth));
+tgrid(398,1:(length(t)+1-id_nc(398))) = t(id_nc(398):length(t));
+chlagrid(398,1:(length(chla)+1-id_nc(398))) = chla(id_nc(398):length(chla));
 
-tgridDatenum = datenum(tgrid);
+tgridDatenum = datenum(tgrid);      % Convert time vector to datenum format (for plotting).
 
+% Figure 1a. chl-a(p,t).
 figure;
 contourf(tgridDatenum,dgrid,chlagrid,linspace(0,500,10),'LineColor','auto');
 set(gca,"YDir","reverse");
@@ -92,54 +122,21 @@ ylabel("P [dbar]","FontSize",13); xlabel("Time",FontSize=13);
 ax = gca;
 ax.FontSize = 15;
 
-% Filter by season.
-tgridF = tgrid;
-chlagridF = chlagrid;
-for i = 1:647
-    for j = 1:20
-        if month(tgridF(i,j)) == 12 || month(tgridF(i,j)) == 1 || month(tgridF(i,j)) == 2
-            chlagridF(i,j) = NaN;
-        else
-            chlagridF(i,j) = chlagrid(i,j);
-        end
-    end
-end
-
-tgridFD = datenum(tgridF);
-
-figure;
-contourf(tgridFD,dgrid,chlagridF,linspace(0,500,10),'LineColor','auto');
-set(gca,"YDir","reverse");
-datetickzoom('x','yyyy','keeplimits');
-colormap(flipud(cbrewer2("GnBu")));
-c = colorbar;
-c.Label.String = 'chl-a [ng/l]';
-c.FontSize = 13;
-ylim([1 18]);
-zlim([0 500]);
-yticks(1:1:18);
-% yticklabels({});
-yticklabels(5:10:175);
-ylabel("P [dbar]","FontSize",13); xlabel("Time",FontSize=13);
-ax = gca;
-ax.FontSize = 15;
-
 %% BATS. chla-a. Mean profile. (Fig. 1b)
-chlaProfile = nan(1,20);
-f5 = nan(1,20);
-f95 = nan(1,20);
 
+% Calculate the mean chl-a at each depth bin as well as the 5th and 95th
+% percentile values.
+chlaProfile = nan(1,20); f5 = nan(1,20); f95 = nan(1,20);
 for i = 1:20
     chlaProfile(i) = mean(chlagrid(dgrid==i),"omitnan");
     f5(i) = prctile(chlagrid(dgrid==i),5);
     f95(i) = prctile(chlagrid(dgrid==i),95);
 end
 
-% Toggle show y-label and title (for paper we don't need either)
+% Toggle show y-label and title (for the paper we don't need either)
 displayYLabelAndTitle = false;
 
-% Plot the mean profile of fluorescence with the mean and confidence
-% interval.
+% Figure 1b. Mean chl-a profile.
 ax = figure;
 plot(chlagrid(:,1),dgrid(:,1),'.',Color=[0.8 0.8 0.8],DisplayName="raw data");
 hold on
@@ -157,29 +154,33 @@ if displayYLabelAndTitle == true
     yticklabels({});
 end
 yticks(1:1:18); yticklabels(5:10:175);
-ylim([1 18]);
+ylim([1 18]); xlim([0 600]);
 ax = gca;
 ax.FontSize = 15;
 
 
 %% BATS. chl-a. A-D test. (Fig. 2)
 
-% mean DCM and prctl.
-for i = 1:647
-    tmp = chlagridF(i,:);
-    [mx(i) pcm(i)] = max(tmp);
-    if pcm(i) == 1 || pcm(i) == 2
-        pcm(i) = nan;
-        mx(i) = nan;
-    end
+% Find the depth of the Chlorophyll Maximum (CM). NOTE that in the case of
+% BATS that this is not necessarily a deep maximum. We will separate the
+% deep maxima at a later stage.
+depthOfCm = nan(398,1);
+for i = 1:398
+    tmp = chlagrid(i,:);
+    [~,id_DCM(i)] = max(tmp);
+    depthOfCm(i) = depthUnbinned(i,id_DCM(i));
 end
 
-% ppp =id*10 -5;
-ppp2 = mean(pcm,"omitnan");
-prct1 = prctile(pcm,5);
-prct2 = prctile(pcm,95);
+% Calculate the mean depth of the Chlorophyll Maximum (CM) as well as the
+% 5th and 9th percentile interval values.
+meanCM = mean(depthOfCm,"omitnan");
+CM_5pct = prctile(depthOfCm,5);
+CM_95pct = prctile(depthOfCm,95);
 
-fluo_B = nan(20,1000);
+% Use the Anderson-Darling (A-D) test to evaluate whether the data is
+% distributed normally or lognormally. The hypothesis test result 'h' will
+% return as h = 1 if the null hypothesis is rejected or h = 0 if there is a
+% failure to reject the null hypothesis.
 hN = nan(20,1); pN = nan(20,1); hL = nan(20,1); pL = nan(20,1);
 obs = nan(20,1);
 for i = 1:20
@@ -188,111 +189,230 @@ for i = 1:20
         obs(i) = length(tmp);
         tmp(tmp==0) = nan;
 
-        [hN(i), pN(i)] = adtest(tmp,"Distribution","norm");
+        [hN(i), pN(i)] = adtest(tmp,"Distribution","norm","Alpha",0.005);
         [hL(i), pL(i)] = adtest(tmp,"Distribution","logn","Alpha",0.005);
 
-        
-        pd0 = fitdist(tmp,'Normal');
-        pd = fitdist(tmp,'Lognormal');
-        [hN2(i), pN2(i)] = chi2gof(tmp,"CDF",pd0);
-        [hN3(i), pN3(i)] = lillietest(tmp,"Distribution","norm");
-        [hx1(i),px1(i)] = chi2gof(tmp,'CDF',pd);
-        [hx2(i),px2(i)] = lillietest(log(tmp),"Distr","norm");
+        if showOtherTests == true
+            pd0 = fitdist(tmp,'Normal');
+            pd = fitdist(tmp,'Lognormal');
+            [hN2(i), pN2(i)] = chi2gof(tmp,"CDF",pd0);
+            [hN3(i), pN3(i)] = lillietest(tmp,"Distribution","norm");
+            [hx1(i),px1(i)] = chi2gof(tmp,'CDF',pd);
+            [hx2(i),px2(i)] = lillietest(log(tmp),"Distr","norm");
+        end
     end
 end
 
+% Figure 2. chl-a. Is the data normal or lognormal?
 figure;
-sgtitle("chl-a (L0): " + "BATS "+num2str(YMD(1))+" - " + num2str(YMD(end))+"");
-subplot(1,2,1)
-semilogx(pN,1:1:20,'o-','Color','#c51b7d','DisplayName','Normal (A-D)','LineWidth',1.5,'MarkerSize',5);
+if showL0title == true
+    sgtitle("chl-a (L0): " + "BATS "+num2str(YMD(1))+" - " + num2str(YMD(end))+"");
+end
+subplot(1,3,[1 2])
+yyaxis left
+semilogx(pN,0.5:1:19.5,'o-','Color','#c51b7d','DisplayName','Normal (A-D)','LineWidth',1.5,'MarkerSize',5);
 hold on
-% semilogx(pN2,1:1:20,'o-','Color','#c51b7d','DisplayName','Normal (chi^2)','LineWidth',1.5,'MarkerSize',5);
-% semilogx(pN3,1:1:20,'o--','Color','#c51b7d','DisplayName','Normal (Lil.)','LineWidth',1.5,'MarkerSize',5);
-semilogx(pL,1:1:20,'o-','Color','#4d9221','DisplayName','Lognormal (A-D)','LineWidth',1.5,'MarkerSize',5);
-% semilogx(px1,1:1:20,'o-','Color','#4d9221','DisplayName','Lognormal (chi^2)','LineWidth',1.5,'MarkerSize',5);
-% semilogx(px2,1:1:20,'o--','Color','#4d9221','DisplayName','Lognormal (Lil.)','LineWidth',1.5,'MarkerSize',5);
-yline(ppp2,DisplayName="p_{DCM} \pm 5/95",Interpreter="latex");
-yline(prct1,HandleVisibility="off");
-yline(prct2,HandleVisibility="off");
+semilogx(pL,0.5:1:19.5,'o-','Color','#4d9221','DisplayName','Lognormal (A-D)','LineWidth',1.5,'MarkerSize',5);
+if showOtherTests == true
+    semilogx(pN2,1:1:20,'o-','Color','#c51b7d','DisplayName','Normal (chi^2)','LineWidth',1.5,'MarkerSize',5);
+    semilogx(pN3,1:1:20,'o--','Color','#c51b7d','DisplayName','Normal (Lil.)','LineWidth',1.5,'MarkerSize',5);
+    semilogx(px1,1:1:20,'o-','Color','#4d9221','DisplayName','Lognormal (chi^2)','LineWidth',1.5,'MarkerSize',5);
+    semilogx(px2,1:1:20,'o--','Color','#4d9221','DisplayName','Lognormal (Lil.)','LineWidth',1.5,'MarkerSize',5);
+end
+set(gca,"YDir","reverse"); legend();
+yticklabels(0:20:200);
+ylim([0 20]);
+ylabel("Depth (m) (10-m bins)");
+yyaxis right
+yline(meanCM,DisplayName="p_{DCM} \pm 5/95",Interpreter="latex");
+yline(CM_5pct,HandleVisibility="off");
+yline(CM_95pct,HandleVisibility="off");
 xline(0.005,":","\alpha","DisplayName","\alpha = 0.005");
 hold off
 set(gca,"YDir","reverse"); legend();
-yticklabels(-5:20:195);
-ylim([0.5 20.5]);
+yticklabels({});
+ylim([0 200]);
 xlim([1e-3 1]);
-ylabel("Depth (m) (10-m bins)");
 xlabel("p-value");
-subplot(1,2,2)
+
+subplot(1,3,3)
 barh(obs,'FaceColor','#d3d3d3');
 hold on
 xline(30);
-set(gca,"YDir","reverse");
+set(gca,"YDir","reverse"); xlabel("No. of Obs.");
 ylim([0.5 20.5]); yticklabels({});
-title("No. of Obs.");
 
-
-% show DCM per cruise
-figure;
-plot(mean(tgridF,2)',pcm); 
-set(gca,"YDir","reverse");
-yticklabels(-5:20:195);
 %% Calculate MLD for BATS from temperature and salinity data. (prep Fig. 3)
 
+% Import data.
 data = importdata("data\bats_bottle.txt").data;
+id = data(:,1);     % Bottle ID with format !####$$$@@, where ! = cruise
+                    % type (1 = core cruise), #### = cruise number, 
+                    % $$$ = cast number, @@ = Niskin number.
+YMD = data(:,2);                    % Year, Month, Day.
+lat = data(:,5); long = data(:,6);  % Latitude and Longitude.
+z = data(:,8);                      % Depth (m).
+T = data(:,9);                      % Temperature (C).
+Sp = data(:,11);                    % Practical Salinity.
 
-id = data(:,1);
-lat = data(:,5);
-long = data(:,6);
-z = data(:,8);
-T = data(:,9);
-Sp = data(:,11);
+% Setup time vector.
+tmpB = num2str(YMD);
+YY = str2num(tmpB(:,1:4));
+MM = str2num(tmpB(:,5:6));
+DD = str2num(tmpB(:,7:8));
+t = datetime(YY,MM,DD);
 
+% (re-) assign NaNs.
 z(z==-999) = nan;
 
-% Import Hydrography data.
+% Process Hydrography data according to TEOS-10 standard.
 p = gsw_p_from_z(-z,lat);
 SA = gsw_SA_from_SP(Sp,p,long,lat);
 CT = gsw_CT_from_t(SA,T,p);
 
+% Import cruise type "cType" and cruise number "CRN". 
+tmp3 = num2str(id);
+cType = str2num(tmp3(:,1));
+CRN = str2num(tmp3(:,2:5));
+clear tmp3;
 
-% % Test: find mixed layer pressure for cruise 2.
-% a=25; b=72;
-% mlp = gsw_mlp(SA(a:b),CT(a:b),p(a:b));
-
-% Try to generalise the above. Import cruise type "cType" and cruise number
-% "CRN". 
-tmpA = num2str(id);
-cType = str2num(tmpA(:,1));
-CRN = str2num(tmpA(:,2:5));
-
-% Extract the core cruises (labelled as cType = 1).
+% Extract hydrography from the core cruises (labelled as cType = 1).
 ids = find(cType==1);
 CoreCRN = CRN(ids);
 SA = SA(ids);
 CT = CT(ids);
 p = p(ids);
 
-% % % Remove cruises 22, 23, and 32. (they give unrealistic MLP)
-% CoreCRN = CoreCRN(find(CoreCRN~=22 & CoreCRN~=23 & CoreCRN~=32));
-% SA = SA(find(CoreCRN~=22 & CoreCRN~=23 & CoreCRN~=32));
-% CT = CT(find(CoreCRN~=22 & CoreCRN~=23 & CoreCRN~=32));
-% p = p(find(CoreCRN~=22 & CoreCRN~=23 & CoreCRN~=32));
-
-% Save ID of when new cruise starts.
-newCruiseId = [1];
+% Save the point at which a new cruise starts to the array 'id_nc'.
+% Additionally, save the actual cruise number of the new cruise to the
+% array 'crn_mr'. This is necessary because not all cruises have MLD data.
+id_nc = [1];    % ID (id_) of new cruise (nc).
+crn_mr = [1];   % cruise number (crn_) where MLD was recorded (mr).
 for i = 2:length(CoreCRN)
     if CoreCRN(i) > CoreCRN(i-1)
         disp(i)
-        newCruiseId = [newCruiseId i];
+        id_nc = [id_nc i];
+        crn_mr = [crn_mr CoreCRN(i)];
+    end
+end
+t_nc = t(id_nc);    % Time at which new cruise starts.
+
+% Calculate the Mixed Layer Depth per cruise 'MLD_pc'
+mld_pc = 20*ones(404,1);        % Minimum possible MLD = 20 dbar.
+for i = 2:400
+    mld_pc(i) = gsw_mlp(SA(id_nc(i):id_nc(i+1)),CT(id_nc(i):id_nc(i+1)),p(id_nc(i):id_nc(i+1)));
+    
+end
+
+% Remove casts that are unrealistic.
+mld_pc(mld_pc>300) = nan;
+mld_pc(isnan(mld_pc)) = 20;
+
+% figure
+% yyaxis left
+% plot(t_nc,mld_pc,'o-'); set(gca,"YDir","reverse");
+% hold on
+% yyaxis right
+% plot(tgrid(:,1),id_DCM-0.5,'.-');
+% % yticks(1:1:30);
+% yticklabels(0:50:300);
+% ylim([0 30]);
+% hold off
+% set(gca,"YDir","reverse");
+
+%% DCM vs MLP. In terms of CRN.
+
+% Remove unrealistic values.
+id_DCM(id_DCM>300)=nan;
+
+% Convert DCM depth (m) to DCM pressure (dbar).
+p_DCM = gsw_p_from_z(-depthOfCm,lat(1));
+
+figure;
+plot(CRN_no,p_DCM,DisplayName="DCM");
+hold on
+plot(crn_mr,mld_pc,DisplayName="MLD");
+hold off
+set(gca,"YDir","reverse");
+ylabel("Pressure [dbar]"); xlabel("Cruise No.");
+legend();
+
+
+% Which cruises to look at with Stn ALOHA Level Methodology. We need the
+% DCM to be beneath the ML.
+% Consolidate two vectors of MLD and DCM so they have the same size.
+
+cruises = 1:1:405;
+newDCMcrnVector = nan(length(cruises),1);
+newMLDcrnVector = nan(length(cruises),1);
+newMlp = nan(length(cruises),1);
+newDcm = nan(length(cruises),1);
+
+for i = 1:405
+    for j = 1:398
+        if CRN_no(j) == i
+            newDCMcrnVector(i) = CRN_no(j);
+            newDcm(i) = p_DCM(j);
+        end
+    end
+    for k = 1:404
+        if crn_mr(k) == i
+            newMLDcrnVector(i) = crn_mr(k);
+            newMlp(i) = mld_pc(k);
+        end
     end
 end
 
-% find MLP per cruise
-mlpByCRN = nan(404,1);
-for i = 2:400
-    mlpByCRN(i) = gsw_mlp(SA(newCruiseId(i):newCruiseId(i+1)),CT(newCruiseId(i):newCruiseId(i+1)),p(newCruiseId(i):newCruiseId(i+1)));
+figure;
+plot(newDCMcrnVector,newDcm,DisplayName="Chl-a Maximum");
+hold on
+plot(newMLDcrnVector,newMlp,DisplayName="Mixed Layer Depth");
+hold off
+set(gca,"YDir","reverse");
+ylabel("Pressure [dbar]"); xlabel("Cruise No.");
+legend();
+
+%% Check where DCM is beneath MLD.
+
+dcmBelow = newDcm - newMlp;
+cruisesWhereDCMisBelowMLD = [];
+
+for i = 1:405
+    if dcmBelow(i) > 0
+        cruisesWhereDCMisBelowMLD = [cruisesWhereDCMisBelowMLD i]
+    end
 end
-mlpByCRN(mlpByCRN>300) = nan;
+
 
 figure
-plot(mlpByCRN);
+plot(1:1:405,dcmBelow);
+
+% add column to start
+newChla = [CRN_no' chlagrid];
+
+test1 = 1:1:405;
+test1 = test1';
+tmpC = nan(length(test1),35); tmpD = nan(length(test1),35); tmpT = nan(length(test1),35);
+for i = 1:405
+    for j = 1:398
+        if CRN_no(j) == i
+            tmpC(i,:) = chlagrid(j,:);
+            tmpD(i,:) = dgrid(j,:);
+            tmpT(i,:) = datenum(tgrid(j,:));
+        end
+    end
+end
+
+test3 = [test1 tmpC]; % this has forced the chlagrid array onto a 405 cruise matrix.
+test4 = [test1 tmpD]; % same for depth
+test5 = [test1 tmpT]; % ... and time
+% Now show only the chla arrays where DCM is beneath the MLD.
+newChlaArray = test3(cruisesWhereDCMisBelowMLD,:);
+newDepthArray = test4(cruisesWhereDCMisBelowMLD,:);
+newTimeArray = test5(cruisesWhereDCMisBelowMLD,:);
+
+% remember that the first entry is the CRUISE NO.
+
+dcmsBelow = newDcm(cruisesWhereDCMisBelowMLD);
+
+
