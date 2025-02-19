@@ -46,11 +46,13 @@ for i = 1:length(YMD)
 end
 ss = zeros(1,length(mm));
 t = datetime(YY,MM,DD,hh,mm,ss);
+clear YY MM DD hh mm ss;
 
 % Bin by depth.
 edges = 0:10:200;
 depth_B = discretize(depth,edges);
 % depth_B(isnan(depth_B)) = 99;
+clear edges;
 
 % Extract cruise type 'cType' and cruise number 'CRN'.
 tmp2 = num2str(id);
@@ -61,6 +63,7 @@ clear tmp2;
 % Extract core cruises. These are labelled as cType = 1.
 ids = find(cType==1);
 CoreCRN = CRN(ids);
+copyOfCoreCrn = CoreCRN;
 t = t(ids);
 chla = chla(ids);
 depth = depth(ids);
@@ -290,7 +293,6 @@ id_nc = [1];    % ID (id_) of new cruise (nc).
 crn_mr = [1];   % cruise number (crn_) where MLD was recorded (mr).
 for i = 2:length(CoreCRN)
     if CoreCRN(i) > CoreCRN(i-1)
-        disp(i)
         id_nc = [id_nc i];
         crn_mr = [crn_mr CoreCRN(i)];
     end
@@ -301,24 +303,11 @@ t_nc = t(id_nc);    % Time at which new cruise starts.
 mld_pc = 20*ones(404,1);        % Minimum possible MLD = 20 dbar.
 for i = 2:400
     mld_pc(i) = gsw_mlp(SA(id_nc(i):id_nc(i+1)),CT(id_nc(i):id_nc(i+1)),p(id_nc(i):id_nc(i+1)));
-    
 end
 
 % Remove casts that are unrealistic.
 mld_pc(mld_pc>300) = nan;
 mld_pc(isnan(mld_pc)) = 20;
-
-% figure
-% yyaxis left
-% plot(t_nc,mld_pc,'o-'); set(gca,"YDir","reverse");
-% hold on
-% yyaxis right
-% plot(tgrid(:,1),id_DCM-0.5,'.-');
-% % yticks(1:1:30);
-% yticklabels(0:50:300);
-% ylim([0 30]);
-% hold off
-% set(gca,"YDir","reverse");
 
 %% DCM vs MLP. In terms of CRN.
 
@@ -342,7 +331,7 @@ legend();
 % DCM to be beneath the ML.
 % Consolidate two vectors of MLD and DCM so they have the same size.
 
-cruises = 1:1:405;
+cruises = 1:1:405;                          % number per cruise
 newDCMcrnVector = nan(length(cruises),1);
 newMLDcrnVector = nan(length(cruises),1);
 newMlp = nan(length(cruises),1);
@@ -415,4 +404,104 @@ newTimeArray = test5(cruisesWhereDCMisBelowMLD,:);
 
 dcmsBelow = newDcm(cruisesWhereDCMisBelowMLD);
 
+% try to work out which bottles are from these cruises where the DCM is
+% below the MLD.
+
+test66 = [];
+for i = 1:length(copyOfCoreCrn)
+    for j = 1:length(cruisesWhereDCMisBelowMLD)
+        if copyOfCoreCrn(i) == cruisesWhereDCMisBelowMLD(j)
+            test66 = [test66 i];
+        end
+    end
+end
+
+chla_lowDCM = chla(test66);
+dep_lowDCM = depth_B(test66);
+
+depthOfCm = nan(267,1);
+for i = 1:267
+    tmp = newChlaArray(i,:);
+    [~,id_DCM(i)] = max(tmp);
+    %depthOfCm(i) = depthUnbinned(i,id_DCM(i));
+    depthOfCm(i) = id_DCM(i);
+end
+
+depthOfCm = 10*depthOfCm - 5;
+
+% Calculate the mean depth of the Chlorophyll Maximum (CM) as well as the
+% 5th and 9th percentile interval values.
+meanCM = mean(depthOfCm,"omitnan");
+CM_5pct = prctile(depthOfCm,5);
+CM_95pct = prctile(depthOfCm,95);
+
+
+% Use the Anderson-Darling (A-D) test to evaluate whether the data is
+% distributed normally or lognormally. The hypothesis test result 'h' will
+% return as h = 1 if the null hypothesis is rejected or h = 0 if there is a
+% failure to reject the null hypothesis.
+hN = nan(20,1); pN = nan(20,1); hL = nan(20,1); pL = nan(20,1);
+obs = nan(20,1);
+for i = 1:20
+    tmp = chla_lowDCM(dep_lowDCM==i);
+    if length(tmp) > 30
+        obs(i) = length(tmp);
+        tmp(tmp==0) = nan;
+
+        [hN(i), pN(i)] = adtest(tmp,"Distribution","norm","Alpha",0.005);
+        [hL(i), pL(i)] = adtest(tmp,"Distribution","logn","Alpha",0.005);
+
+        if showOtherTests == true
+            pd0 = fitdist(tmp,'Normal');
+            pd = fitdist(tmp,'Lognormal');
+            [hN2(i), pN2(i)] = chi2gof(tmp,"CDF",pd0);
+            [hN3(i), pN3(i)] = lillietest(tmp,"Distribution","norm");
+            [hx1(i),px1(i)] = chi2gof(tmp,'CDF',pd);
+            [hx2(i),px2(i)] = lillietest(log(tmp),"Distr","norm");
+        end
+    end
+end
+
+% Figure 2X. chl-a. L0. Is the data normal or lognormal? This time we look
+% at only those cruises where the DCM was beneath the MLD.
+
+figure;
+if showL0title == true
+    sgtitle("chl-a (L0): " + "BATS "+num2str(YMD(1))+" - " + num2str(YMD(end))+"");
+end
+subplot(1,3,[1 2])
+yyaxis left
+semilogx(pN,0.5:1:19.5,'o-','Color','#c51b7d','DisplayName','Normal (A-D)','LineWidth',1.5,'MarkerSize',5);
+hold on
+semilogx(pL,0.5:1:19.5,'o-','Color','#4d9221','DisplayName','Lognormal (A-D)','LineWidth',1.5,'MarkerSize',5);
+if showOtherTests == true
+    semilogx(pN2,1:1:20,'o-','Color','#c51b7d','DisplayName','Normal (chi^2)','LineWidth',1.5,'MarkerSize',5);
+    semilogx(pN3,1:1:20,'o--','Color','#c51b7d','DisplayName','Normal (Lil.)','LineWidth',1.5,'MarkerSize',5);
+    semilogx(px1,1:1:20,'o-','Color','#4d9221','DisplayName','Lognormal (chi^2)','LineWidth',1.5,'MarkerSize',5);
+    semilogx(px2,1:1:20,'o--','Color','#4d9221','DisplayName','Lognormal (Lil.)','LineWidth',1.5,'MarkerSize',5);
+end
+set(gca,"YDir","reverse"); legend();
+yticklabels(0:20:200);
+ylim([0 20]);
+ylabel("Depth (m) (10-m bins)");
+yyaxis right
+yline(meanCM,DisplayName="p_{DCM} \pm 5/95",Interpreter="latex");
+yline(CM_5pct,HandleVisibility="off");
+yline(CM_95pct,HandleVisibility="off");
+xline(0.005,":","\alpha","DisplayName","\alpha = 0.005");
+hold off
+set(gca,"YDir","reverse"); legend();
+yticklabels({});
+ylim([0 200]);
+xlim([1e-3 1]);
+xlabel("p-value");
+
+subplot(1,3,3)
+barh(obs,'FaceColor','#d3d3d3');
+hold on
+xline(30);
+set(gca,"YDir","reverse"); xlabel("No. of Obs.");
+ylim([0.5 20.5]); yticklabels({});
+
+%% Find DCM according to CTD.
 
