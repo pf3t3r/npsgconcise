@@ -58,11 +58,13 @@ clear edges;
 tmp2 = num2str(id);
 cType = str2num(tmp2(:,1));
 CRN = str2num(tmp2(:,2:5));
+cast = str2num(tmp2(:,6:8));
 clear tmp2;
 
 % Extract core cruises. These are labelled as cType = 1.
 ids = find(cType==1);
 CoreCRN = CRN(ids);
+cast = cast(ids);
 copyOfCoreCrn = CoreCRN;
 t = t(ids);
 chla = chla(ids);
@@ -79,6 +81,8 @@ for i = 2:length(CoreCRN)
         CRN_no = [CRN_no CoreCRN(i)];
     end
 end
+
+crnAndCast = [CoreCRN cast];
 
 % Divide up the depth, chlorophyll, and time arrays by cruise.
 % NOTE that there are 405 cruises but only 398 have chl-a data.
