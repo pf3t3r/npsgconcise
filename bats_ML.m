@@ -1,24 +1,29 @@
 clear;clc;close all;
 format longG;
+addpath("func\");
 
 % omnibus script to recreate all Stn ALOHA figures with BATS data.
 
 showOtherTests = false;     % Evaluate data with Lilliefors and chi^2 tests.
                             % (in addition to Anderson-Darling)
 showL0title = false;        % Leave as 'false' for paper.
+%%
+A = importdata("data\dcm_BATS.txt");
+dcmBats = A.data;
+
 %% BATS. chl-a. Hovmoeller. (Fig 1a)
 
 % Import Data.
-tmp = importdata('data\L0\bats_pigments.txt').data;
-id = tmp(:,1);      % bottle ID with format !####$$$@@, where ! = cruise
+D = importdata('data\L0\bats_pigments.txt').data;
+id = D(:,1);      % bottle ID with format !####$$$@@, where ! = cruise
                     % type (1 = core cruise), #### = cruise number, 
                     % $$$ = cast number, @@ = Niskin number.
-YMD = tmp(:,2);     % Year, Month, and Day.
-hhmm = tmp(:,4);    % hours and minutes.
-QF = tmp(:,7);      % Quality control factor.
-depth = tmp(:,8);           % Depth (m).
-chla = tmp(:,22);           % chl-a concentration (ng/l).
-chla_Turner = tmp(:,24);    % as above but using Turner method (ng/l).
+YMD = D(:,2);     % Year, Month, and Day.
+hhmm = D(:,4);    % hours and minutes.
+QF = D(:,7);      % Quality control factor.
+depth = D(:,8);           % Depth (m).
+chla = D(:,22);           % chl-a concentration (ng/l).
+chla_Turner = D(:,24);    % as above but using Turner method (ng/l).
 
 % Re-assign NaNs.
 chla(chla==-999) = nan;
@@ -168,21 +173,27 @@ ax.FontSize = 15;
 
 %% BATS. chl-a. A-D test. (Fig. 2)
 
+% DEPRECATED. To replace with CTD fluorometer derived method.
 % Find the depth of the Chlorophyll Maximum (CM). NOTE that in the case of
 % BATS that this is not necessarily a deep maximum. We will separate the
 % deep maxima at a later stage.
-depthOfCm = nan(398,1);
-for i = 1:398
-    tmp = chlagrid(i,:);
-    [~,id_DCM(i)] = max(tmp);
-    depthOfCm(i) = depthUnbinned(i,id_DCM(i));
-end
 
+% depthOfCm = nan(398,1);
+% for i = 1:398
+%     tmp = chlagrid(i,:);
+%     [~,id_DCM(i)] = max(tmp);
+%     depthOfCm(i) = depthUnbinned(i,id_DCM(i));
+% end
+
+% CORRECTED.
 % Calculate the mean depth of the Chlorophyll Maximum (CM) as well as the
 % 5th and 9th percentile interval values.
-meanCM = mean(depthOfCm,"omitnan");
-CM_5pct = prctile(depthOfCm,5);
-CM_95pct = prctile(depthOfCm,95);
+% meanCM = mean(depthOfCm,"omitnan");
+meanCM = mean(dcmBats(:,2),"omitnan");
+% CM_5pct = prctile(depthOfCm,5);
+CM_5pct = prctile(dcmBats(:,2),5);
+% CM_95pct = prctile(depthOfCm,95);
+CM_95pct = prctile(dcmBats(:,2),95);
 
 % Use the Anderson-Darling (A-D) test to evaluate whether the data is
 % distributed normally or lognormally. The hypothesis test result 'h' will
@@ -304,10 +315,16 @@ end
 t_nc = t(id_nc);    % Time at which new cruise starts.
 
 % Calculate the Mixed Layer Depth per cruise 'MLD_pc'
-mld_pc = 20*ones(404,1);        % Minimum possible MLD = 20 dbar.
-for i = 2:400
-    mld_pc(i) = gsw_mlp(SA(id_nc(i):id_nc(i+1)),CT(id_nc(i):id_nc(i+1)),p(id_nc(i):id_nc(i+1)));
+mld_pc = 20*ones(405,1);        % Minimum possible MLD = 20 dbar.
+mld_pc(1) = gsw_mlp(SA(1:24),CT(1:24),p(1:24));
+for i = 2:159
+    mld_pc(i) = gsw_mlp(SA(id_nc(i):id_nc(i+1)-1),CT(id_nc(i):id_nc(i+1)-1),p(id_nc(i):id_nc(i+1)-1));
 end
+mld_pc(161) = gsw_mlp(SA(14613:14697),CT(14613:14697),p(14613:14697));
+for i = 161:403
+    mld_pc(i+1) = gsw_mlp(SA(id_nc(i):id_nc(i+1)-1),CT(id_nc(i):id_nc(i+1)-1),p(id_nc(i):id_nc(i+1)-1));
+end
+mld_pc(405) = gsw_mlp(SA(64123:end),CT(64123:end),p(64123:end));
 
 % Remove casts that are unrealistic.
 mld_pc(mld_pc>300) = nan;
@@ -315,20 +332,24 @@ mld_pc(isnan(mld_pc)) = 20;
 
 %% DCM vs MLP. In terms of CRN.
 
+% DEPRECATED?
 % Remove unrealistic values.
-id_DCM(id_DCM>300)=nan;
+% id_DCM(id_DCM>300)=nan;
 
+% DEPRECATED. CHANGED.
 % Convert DCM depth (m) to DCM pressure (dbar).
-p_DCM = gsw_p_from_z(-depthOfCm,lat(1));
+% p_DCM = gsw_p_from_z(-depthOfCm,lat(1));
+p_DCM = gsw_p_from_z(-dcmBats(:,2),lat(1));
 
-figure;
-plot(CRN_no,p_DCM,DisplayName="DCM");
-hold on
-plot(crn_mr,mld_pc,DisplayName="MLD");
-hold off
-set(gca,"YDir","reverse");
-ylabel("Pressure [dbar]"); xlabel("Cruise No.");
-legend();
+% figure;
+% % plot(CRN_no,p_DCM,DisplayName="DCM");
+% plot(dcmBats(:,1),dcmBats(:,2),DisplayName="DCM");
+% hold on
+% plot(crn_mr,mld_pc,DisplayName="MLD");
+% hold off
+% set(gca,"YDir","reverse");
+% ylabel("Pressure [dbar]"); xlabel("Cruise No.");
+% legend();
 
 
 % Which cruises to look at with Stn ALOHA Level Methodology. We need the
@@ -336,18 +357,12 @@ legend();
 % Consolidate two vectors of MLD and DCM so they have the same size.
 
 cruises = 1:1:405;                          % number per cruise
-newDCMcrnVector = nan(length(cruises),1);
+% newDCMcrnVector = nan(length(cruises),1);
 newMLDcrnVector = nan(length(cruises),1);
 newMlp = nan(length(cruises),1);
-newDcm = nan(length(cruises),1);
+% newDcm = nan(length(cruises),1);
 
 for i = 1:405
-    for j = 1:398
-        if CRN_no(j) == i
-            newDCMcrnVector(i) = CRN_no(j);
-            newDcm(i) = p_DCM(j);
-        end
-    end
     for k = 1:404
         if crn_mr(k) == i
             newMLDcrnVector(i) = crn_mr(k);
@@ -357,7 +372,7 @@ for i = 1:405
 end
 
 figure;
-plot(newDCMcrnVector,newDcm,DisplayName="Chl-a Maximum");
+plot(dcmBats(:,1),dcmBats(:,2),DisplayName="Chl-a Maximum");
 hold on
 plot(newMLDcrnVector,newMlp,DisplayName="Mixed Layer Depth");
 hold off
@@ -367,7 +382,7 @@ legend();
 
 %% Check where DCM is beneath MLD.
 
-dcmBelow = newDcm - newMlp;
+dcmBelow = dcmBats(:,2) - newMlp;
 cruisesWhereDCMisBelowMLD = [];
 
 for i = 1:405
@@ -399,6 +414,7 @@ end
 test3 = [test1 tmpC]; % this has forced the chlagrid array onto a 405 cruise matrix.
 test4 = [test1 tmpD]; % same for depth
 test5 = [test1 tmpT]; % ... and time
+
 % Now show only the chla arrays where DCM is beneath the MLD.
 newChlaArray = test3(cruisesWhereDCMisBelowMLD,:);
 newDepthArray = test4(cruisesWhereDCMisBelowMLD,:);
@@ -406,7 +422,10 @@ newTimeArray = test5(cruisesWhereDCMisBelowMLD,:);
 
 % remember that the first entry is the CRUISE NO.
 
-dcmsBelow = newDcm(cruisesWhereDCMisBelowMLD);
+% DEPRECATED.
+% dcmsBelow = newDcm(cruisesWhereDCMisBelowMLD);
+dcmsBelow = dcmBats(cruisesWhereDCMisBelowMLD,:);
+
 
 % try to work out which bottles are from these cruises where the DCM is
 % below the MLD.
@@ -423,21 +442,11 @@ end
 chla_lowDCM = chla(test66);
 dep_lowDCM = depth_B(test66);
 
-depthOfCm = nan(267,1);
-for i = 1:267
-    tmp = newChlaArray(i,:);
-    [~,id_DCM(i)] = max(tmp);
-    %depthOfCm(i) = depthUnbinned(i,id_DCM(i));
-    depthOfCm(i) = id_DCM(i);
-end
-
-depthOfCm = 10*depthOfCm - 5;
-
 % Calculate the mean depth of the Chlorophyll Maximum (CM) as well as the
 % 5th and 9th percentile interval values.
-meanCM = mean(depthOfCm,"omitnan");
-CM_5pct = prctile(depthOfCm,5);
-CM_95pct = prctile(depthOfCm,95);
+meanCM = mean(dcmsBelow(:,2),"omitnan");
+CM_5pct = prctile(dcmsBelow(:,2),5);
+CM_95pct = prctile(dcmsBelow(:,2),95);
 
 
 % Use the Anderson-Darling (A-D) test to evaluate whether the data is
@@ -509,3 +518,174 @@ ylim([0.5 20.5]); yticklabels({});
 
 %% Find DCM according to CTD.
 
+
+%% BATS L1 analysis.
+threshold = 30;
+
+% Import data: bottle ID, depth, and chl-a concentration.
+idIn = D(:,1);
+depthIn = D(:,8);
+cIn = D(:,22);
+
+% Convert depth => pressure.
+pIn = gsw_p_from_z(-depthIn,lat(1));
+
+% Extract cruise no.
+tmp = num2str(idIn);
+cruiseNo = str2num(tmp(:,2:5)); clear tmp;
+
+% Look only at cruises where DCM is below MLD.
+Lia = ismember(cruiseNo,cruisesWhereDCMisBelowMLD);
+cruiseNo(Lia==0) = [];
+pIn(Lia==0) = [];
+cIn(Lia==0) = [];
+
+% Populate new arrays with only Mixed-Layer values.
+L = length(pIn);
+tmpP = nan(1,L);
+tmpCrn = nan(1,L);
+tmpC = nan(1,L);
+tmpId = nan(1,L);
+
+% Only use cruises where DCM < MLD
+
+
+for i = 1:L
+    disp(i)
+    tmp = mld_pc(cruiseNo(i));
+    if pIn(i) < tmp
+        tmpP(i) = pIn(i);
+        tmpCrn(i) = cruiseNo(i);
+        tmpC(i) = cIn(i);
+        tmpId(i) = idIn(i);
+    end
+end
+
+% Remove nan values (i.e. values beneath Mixed Layer).
+pOut = tmpP(~isnan(tmpP));
+crnOut = tmpCrn(~isnan(tmpCrn));
+COut = tmpC(~isnan(tmpC));
+idOut = tmpId(~isnan(tmpId));
+
+% Remove bottles that are too close to the surface (< 2.5 dbar)
+idRm = pOut > 2.5;
+pOut = pOut(idRm);
+COut = COut(idRm);
+idOut = idOut(idRm);
+
+% Remove bottles where concentration of COut = 0
+idZero = COut == 0;
+pOut = pOut(~idZero);
+COut = COut(~idZero);
+idOut = idOut(~idZero);
+
+% Bin pressures.
+pb10 = discretize(pOut,0:10:200);
+n10 = max(pb10);
+
+obs = nan(20,1);
+n = n10;
+depth = 5:10:200;
+ad = nan(2,20);
+
+% Apply A-D test to values of chl-a in the mixed layer.
+for i = 1:n
+    X_i = COut(pb10==i); % find concentration X_i at binned pressure i
+    if length(X_i) > 3
+        [~,ad(2,i)] = adtest(X_i,"Distribution","logn","Alpha",0.005);
+        [~,ad(1,i)] = adtest(X_i,"Distribution","norm","Alpha",0.005);
+        [rV(:,i),pV(:,i)] = bbvuong(X_i);
+        sk(i) = skewness(X_i);
+        ku(i) = kurtosis(X_i);
+    end
+    obs(i) = length(X_i);
+    clear X_i;
+end
+
+for i = 1:n
+    if obs(i) < threshold
+        ad(:,i) = nan;
+        sk(i) = nan;
+        ku(i) = nan;
+        rV(:,i) = nan;
+        pV(:,i) = nan;
+    end
+end
+
+tmp = [];
+for i = 1:n
+    if ~isnan(sum(ad(:,i)))
+        tmp = [tmp i];
+    end
+end
+tr = depth(tmp);
+sk = sk(tmp);
+ku = ku(tmp);
+rV = rV(:,tmp);
+pV = pV(:,tmp);
+ad = ad(:,~all(isnan(ad)));
+
+% Plot results.
+ax = figure;
+
+vuongRes = nan(length(tr));
+for i = 1:length(tr)
+    if rV(1,i) > 0
+        disp('Normal');
+        vuongRes(i) = 1;
+    elseif rV(1,i) < 0
+        disp('Lognormal');
+        vuongRes(i) = 2;
+    end
+end
+
+% Lognormal family: generate theoretical skewness and kurtosis
+sigTh = linspace(0,1,1000);
+for i = 1:length(sigTh)
+    skLogn(i) = (exp(sigTh(i)^2) + 2)*(sqrt(exp(sigTh(i)^2) - 1));
+    kuLogn(i) = exp(4*sigTh(i)^2) + 2*exp(3*sigTh(i)^2) + 3*exp(2*sigTh(i)^2) - 3;
+end
+skLognN = -skLogn;
+kuLognN = kuLogn;
+
+% Specify expectation value.
+alphaHy = 0.005;
+alphaLlr = 0.005;
+
+subplot(1,3,3)
+barh(obs,'FaceColor','#d3d3d3');
+hold on
+xline(threshold);
+hold off
+set(gca,'YDir','reverse');
+yticks(0.5:1:9.5);
+yticklabels(0:10:90);
+ylim([0.5 9.5]);
+yticklabels({});
+xlabel('No. of Obs.',Interpreter='latex',FontSize=13);
+
+subplot(1,3,[1 2])
+xline(alphaHy,'-','\color{black}\alpha=0.005',LineWidth=1.5,Color="#808080",HandleVisibility="off",LabelOrientation="horizontal",LabelHorizontalAlignment="center",FontSize=13);
+hold on
+for i = 1:n
+    if vuongRes(i) == 1 && ad(1,i) > alphaHy & pV(1,i) > alphaLlr && ad(2,i) > alphaHy
+        plot(ad(1,i),tr(i),'square','Color','#c51b7d','MarkerSize',15,HandleVisibility='off');
+    elseif vuongRes(i) == 1 && ad(1,i) > alphaHy & pV(1,i) < alphaLlr && ad(2,i) > alphaHy
+        plot(ad(1,i),tr(i),'square','Color','#c51b7d','MarkerSize',15,'LineWidth',4,HandleVisibility='off');
+    elseif vuongRes(i) == 2 && ad(2,i) > alphaHy & pV(1,i) > alphaLlr && ad(1,i) > alphaHy
+        plot(ad(2,i),tr(i),'square','Color','#4d9221','MarkerSize',15,HandleVisibility='off');
+    elseif vuongRes(i) == 2 && ad(2,i) > alphaHy & pV(1,i) < alphaLlr && ad(1,i) > alphaHy
+        plot(ad(2,i),tr(i),'square','Color','#4d9221','MarkerSize',15,'LineWidth',4,HandleVisibility='off');
+    end
+end
+plot(nan,nan,'square','Color','#808080','MarkerSize',15,'DisplayName','V-LLR best fit (p > 0.1)');        
+plot(nan,nan,'square','Color','#808080','MarkerSize',15,'LineWidth',4,'DisplayName','V-LLR best fit (p < 0.1)');        
+plot(ad(1,:),tr,'o-','Color','#c51b7d','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5);
+plot(ad(2,:),tr,'o-','Color','#4d9221','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
+xlabel('A-D $p$-value',Interpreter='latex',FontSize=13);
+hold off
+set(gca, 'XScale', 'log');
+grid minor;
+xlim([0.1*alphaHy 1]); ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
+set(gca,'YDir','reverse');
+legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);

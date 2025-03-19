@@ -4,10 +4,10 @@ close all;clc;clear;
 
 %% IMPORT data.
 % ONLY need to change variables in this subsection.
-tmp = importdata("data\L0\dvchla_94-21_200.txt").data;
-NAME = "dvchla-55";
-xlab = "divinyl chl $a$ [ng/l]";
-binVal = 55;
+tmp = importdata("data\L0\hplcChla_88-22_200.txt").data;
+NAME = "";
+xlab = "chl $a$ [ng/l]";
+binVal = 115;
 
 %% SPECIFY plot dimensions.
 
@@ -34,9 +34,9 @@ tmpX = X(pX==binVal);
 tmpX(tmpX<=0) = [];
 
 figure;
-histfit(tmpX,40,"lognormal");
+histfit(tmpX,40);
 title(NAME); xlabel(xlab,Interpreter="latex");
-legend("data","lognormal");
+legend("data","normal");
 exportgraphics(gca,"figures/L0/bot/hist/" + NAME + ".png")
 
 %% HYPOTHESIS test: A-D, Lillie.
