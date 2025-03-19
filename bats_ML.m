@@ -7,7 +7,8 @@ addpath("func\");
 showOtherTests = false;     % Evaluate data with Lilliefors and chi^2 tests.
                             % (in addition to Anderson-Darling)
 showL0title = false;        % Leave as 'false' for paper.
-%%
+
+%% Import DCM file for BATS
 A = importdata("data\dcm_BATS.txt");
 dcmBats = A.data;
 
@@ -173,26 +174,14 @@ ax.FontSize = 15;
 
 %% BATS. chl-a. A-D test. (Fig. 2)
 
-% DEPRECATED. To replace with CTD fluorometer derived method.
 % Find the depth of the Chlorophyll Maximum (CM). NOTE that in the case of
 % BATS that this is not necessarily a deep maximum. We will separate the
 % deep maxima at a later stage.
 
-% depthOfCm = nan(398,1);
-% for i = 1:398
-%     tmp = chlagrid(i,:);
-%     [~,id_DCM(i)] = max(tmp);
-%     depthOfCm(i) = depthUnbinned(i,id_DCM(i));
-% end
-
-% CORRECTED.
 % Calculate the mean depth of the Chlorophyll Maximum (CM) as well as the
 % 5th and 9th percentile interval values.
-% meanCM = mean(depthOfCm,"omitnan");
 meanCM = mean(dcmBats(:,2),"omitnan");
-% CM_5pct = prctile(depthOfCm,5);
 CM_5pct = prctile(dcmBats(:,2),5);
-% CM_95pct = prctile(depthOfCm,95);
 CM_95pct = prctile(dcmBats(:,2),95);
 
 % Use the Anderson-Darling (A-D) test to evaluate whether the data is
@@ -332,35 +321,15 @@ mld_pc(isnan(mld_pc)) = 20;
 
 %% DCM vs MLP. In terms of CRN.
 
-% DEPRECATED?
-% Remove unrealistic values.
-% id_DCM(id_DCM>300)=nan;
-
-% DEPRECATED. CHANGED.
 % Convert DCM depth (m) to DCM pressure (dbar).
-% p_DCM = gsw_p_from_z(-depthOfCm,lat(1));
 p_DCM = gsw_p_from_z(-dcmBats(:,2),lat(1));
-
-% figure;
-% % plot(CRN_no,p_DCM,DisplayName="DCM");
-% plot(dcmBats(:,1),dcmBats(:,2),DisplayName="DCM");
-% hold on
-% plot(crn_mr,mld_pc,DisplayName="MLD");
-% hold off
-% set(gca,"YDir","reverse");
-% ylabel("Pressure [dbar]"); xlabel("Cruise No.");
-% legend();
-
 
 % Which cruises to look at with Stn ALOHA Level Methodology. We need the
 % DCM to be beneath the ML.
 % Consolidate two vectors of MLD and DCM so they have the same size.
-
 cruises = 1:1:405;                          % number per cruise
-% newDCMcrnVector = nan(length(cruises),1);
 newMLDcrnVector = nan(length(cruises),1);
 newMlp = nan(length(cruises),1);
-% newDcm = nan(length(cruises),1);
 
 for i = 1:405
     for k = 1:404
@@ -387,7 +356,7 @@ cruisesWhereDCMisBelowMLD = [];
 
 for i = 1:405
     if dcmBelow(i) > 0
-        cruisesWhereDCMisBelowMLD = [cruisesWhereDCMisBelowMLD i]
+        cruisesWhereDCMisBelowMLD = [cruisesWhereDCMisBelowMLD i];
     end
 end
 
@@ -422,10 +391,7 @@ newTimeArray = test5(cruisesWhereDCMisBelowMLD,:);
 
 % remember that the first entry is the CRUISE NO.
 
-% DEPRECATED.
-% dcmsBelow = newDcm(cruisesWhereDCMisBelowMLD);
 dcmsBelow = dcmBats(cruisesWhereDCMisBelowMLD,:);
-
 
 % try to work out which bottles are from these cruises where the DCM is
 % below the MLD.
@@ -522,23 +488,32 @@ ylim([0.5 20.5]); yticklabels({});
 %% BATS L1 analysis.
 threshold = 30;
 
+% Set whether to analyse total data or...
+% only data for cruises where the DCM is beneath the ML 
+dcmBeneathML = true;
+
 % Import data: bottle ID, depth, and chl-a concentration.
 idIn = D(:,1);
 depthIn = D(:,8);
 cIn = D(:,22);
 
 % Convert depth => pressure.
-pIn = gsw_p_from_z(-depthIn,lat(1));
+pIn = gsw_p_from_z(-depthIn,lat(1)); clear depthIn;
 
 % Extract cruise no.
 tmp = num2str(idIn);
 cruiseNo = str2num(tmp(:,2:5)); clear tmp;
 
-% Look only at cruises where DCM is below MLD.
-Lia = ismember(cruiseNo,cruisesWhereDCMisBelowMLD);
-cruiseNo(Lia==0) = [];
-pIn(Lia==0) = [];
-cIn(Lia==0) = [];
+% Look only at cruises where DCM is beneath ML.
+if dcmBeneathML == true
+    disp("L1: examining only cruises where DCM is beneath ML")
+    Lia = ismember(cruiseNo,cruisesWhereDCMisBelowMLD);
+    cruiseNo(Lia==0) = [];
+    pIn(Lia==0) = [];
+    cIn(Lia==0) = [];
+else
+    disp("L1: examining total dataset...")
+end
 
 % Populate new arrays with only Mixed-Layer values.
 L = length(pIn);
@@ -546,9 +521,6 @@ tmpP = nan(1,L);
 tmpCrn = nan(1,L);
 tmpC = nan(1,L);
 tmpId = nan(1,L);
-
-% Only use cruises where DCM < MLD
-
 
 for i = 1:L
     disp(i)
@@ -689,3 +661,250 @@ grid minor;
 xlim([0.1*alphaHy 1]); ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
 set(gca,'YDir','reverse');
 legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);
+
+%% BATS L2 Analysis.
+
+% Set whether to analyse total data or...
+% only data for cruises where the DCM is beneath the ML 
+dcmBeneathML = false;
+
+% Import data.
+idIn = num2str(D(:,1));
+depthIn = D(:,8);
+cIn = D(:,22);
+
+% Convert depth => pressure.
+pIn = gsw_p_from_z(-depthIn,lat(1)); clear depthIn;
+
+% (included code from extractSMLC)
+% Exclude NaN data (-9 = NaN)
+cIn(cIn==-9) = nan;
+idIn = idIn(~isnan(cIn),:);
+pIn = pIn(~isnan(cIn));
+cIn = cIn(~isnan(cIn));
+
+% Cruise number 'crn'
+crn = str2num(idIn(:,2:5));
+
+% Look only at cruises where DCM is beneath ML.
+if dcmBeneathML == true
+    disp("L2: analysing only cruises where DCM is beneath ML...");
+    Lia = ismember(crn,cruisesWhereDCMisBelowMLD);
+    crn(Lia==0) = [];
+    pIn(Lia==0) = [];
+    cIn(Lia==0) = [];
+else
+    disp("L2: analysing complete dataset...");
+end
+% Extract measurements below pMaxMld
+L = length(pIn);
+tmpP_subML = nan(L,1);
+tmpCrn_subML = nan(L,1);
+tmpC_subML = nan(L,1);
+botID = [];
+
+% To find the measurements taken beneath pMaxMld, we populate the arrays
+% just defined for cases where p > pMld...
+for i = 1:L
+    tmpMld = mld_pc(crn(i));
+    if p(i) > tmpMld
+        tmpP_subML(i) = pIn(i);
+        tmpCrn_subML(i) = crn(i);
+        tmpC_subML(i) = cIn(i);
+        tmpStr = idIn(i,:);
+        botID = [botID;tmpStr];
+    end
+end
+
+% ...and remove nan values (which represent measurements above pMaxMld)
+pOut = tmpP_subML(~isnan(tmpP_subML));
+cOut = tmpC_subML(~isnan(tmpC_subML));
+idOut = botID;
+
+% 3. Calculate KS p-value, skewness, kurtosis
+% ..., centre around DCM (?)
+% [pr,ks,obs,sk,ku,rV,pV,ad,X_out,bA,pB] = ksOfLagrangian(idSubml,pSubml,dcm,cSubml,threshold);
+
+% Extract cruise number 'crn' and 'cast'
+% MAYBE leave out cast?
+crn = str2num(idOut(:,2:5)); 
+% cast = str2num(idOut(:,6:8));
+% cast(cast==100 | cast==80 | cast==81 | cast==82 | cast==83 | cast==84 | cast==85 | cast==86) = nan;
+
+bottleArray = [crn pOut];
+
+% Create an array of all unique bottle cruise/cast combinations
+botCrnCast = rmmissing(unique(bottleArray(:,1),"rows"));
+
+% Find these unique cruise/cast combinations in the 'dcm' array
+% I already chose the DCM as applying to the mean of all casts taken for a
+% particular cruise.
+dcmCrnCast = [];
+for i = 1:length(dcmBats(:,1))
+    for x = 1:length(botCrnCast)
+        if dcmBats(i,1) == botCrnCast(x,1) 
+            dcmCrnCast = [dcmCrnCast i];
+        end
+    end
+end
+
+% Split bottle concentration by cruise & cast
+tid = [];
+for i = 2:length(pOut)
+    % check if CRN changes
+    if bottleArray(i,1) > bottleArray(i-1,1)
+        tid = [tid i];
+    end
+end
+
+tPcm = nan(length(pOut),1);
+tPcm(1:tid(1)-1) = dcmBats(dcmCrnCast(1),2);
+tPcm(tid(end):end) = dcmBats(dcmCrnCast(end),2);
+
+Ltid = length(tid);
+
+tmp = length(dcmCrnCast) - 1;
+Ltid = tmp;
+for i = 2:Ltid-2
+    tPcm(tid(i):tid(i+1)-1) = dcmBats(dcmCrnCast(i),2);
+end
+
+bottleArray = [bottleArray tPcm];
+
+% THIS is where we convert to Lagrangian pressure coordinates!!!
+tPLagrangian = nan(length(p),1);
+tPLagrangian = bottleArray(:,2) - bottleArray(:,3);
+bottleArray = [bottleArray tPLagrangian];
+
+pB10 = round(bottleArray(:,4),-1);
+bottleArray = [bottleArray pB10];
+
+bottleArray = [bottleArray cOut];
+pmin = min(bottleArray(:,5));
+pmax = max(bottleArray(:,5));
+pr = pmin:10:pmax;
+
+C_out = bottleArray(:,6);
+pB = bottleArray(:,5);
+ad = nan(2,length(pr));
+rV = nan(10,length(pr));
+pV = nan(10,length(pr));
+obs = nan(1,length(pr));
+
+sk = nan(1,length(pr));
+ku = nan(1,length(pr));
+
+for i = 1:length(pr)
+    tmp = C_out(pB==pr(i));
+    tmp(tmp<=0) = nan;
+    tmp(isnan(tmp)) = [];
+    obs(i) = length(tmp);
+    if length(tmp) > 3
+        [~,ad(2,i)] = adtest(tmp,"Distribution","logn","Alpha",0.005);
+        [~,ad(1,i)] = adtest(tmp,"Distribution","norm","Alpha",0.005);
+        [rV(:,i),pV(:,i)] = bbvuong(tmp);
+        sk(i) = skewness(tmp);
+        ku(i) = kurtosis(tmp);
+    end
+end
+
+for i = 1:length(pr)
+    if obs(i) < threshold
+        ad(:,i) = nan;
+        rV(:,i) = nan;
+        sk(i) = nan;
+        ku(i) = nan;
+    end
+end
+
+% 3.a. Intercomparison of results from Vuong's Test: easily see best
+% distribution at each depth.
+vuongRes = zeros(1,length(pr));
+rV(isnan(rV)) = 0;
+
+for i = 1:length(pr)
+    if rV(1,i) > 0
+        vuongRes(i) = 1;
+    elseif rV(1,i) < 0
+        vuongRes(i) = 2;
+    end
+end
+rV(rV==0) = nan;
+
+% plotks2 code.
+figure
+n = length(pr);
+
+% Create Annotations for Vuong's Test Results
+annot = strings(1,n);
+anClr = strings(1,n);
+anClr(cellfun(@isempty,anClr)) = '#FFFFFF';
+tmpEmph = strings(1,n); tmpEmph(cellfun(@isempty,tmpEmph)) = 'bold';
+
+
+alphaHy = 0.005;
+alphaLlr = 0.1;
+
+for i = 1:n
+    if vuongRes(i) == 1 && ad(1,i) > alphaHy
+        annot(i) = "Normal";
+        anClr(i) = '#c51b7d';
+        if pV(1,i) > alphaLlr
+            tmpEmph(i) = 'normal';
+        end
+    elseif vuongRes(i) == 2 && ad(2,i) > alphaHy
+        annot(i) = "Lognormal";
+        anClr(i) = '#4d9221';
+        if pV(1,i) > alphaLlr
+            tmpEmph(i) = 'normal';
+        end
+    else
+        annot(i) = "";
+    end
+end
+
+% Lognormal family: generate theoretical skewness and kurtosis
+sigTh = linspace(0,1,1000);
+for i = 1:length(sigTh)
+    skLogn(i) = (exp(sigTh(i)^2) + 2)*(sqrt(exp(sigTh(i)^2) - 1));
+    kuLogn(i) = exp(4*sigTh(i)^2) + 2*exp(3*sigTh(i)^2) + 3*exp(2*sigTh(i)^2) - 3;
+end
+skLognN = -skLogn;
+kuLognN = kuLogn;
+
+subplot(1,3,3)
+barh(obs,'FaceColor','#d3d3d3');
+hold on
+xline(threshold);
+hold off
+set(gca,'YDir','reverse');
+yticklabels({});
+xlabel('No. of Obs.',Interpreter='latex',FontSize=13);
+% ylim([1 1+b-a]);
+ylim([5 40]);
+
+subplot(1,3,[1 2])
+xline(alphaHy,'-','\color{black}\alpha=0.005',LineWidth=1.5,Color="#808080",HandleVisibility="off",LabelOrientation="horizontal",LabelHorizontalAlignment="center",FontSize=13);
+hold on
+for i = 1:n
+    if vuongRes(i) == 1 && ad(1,i) > alphaHy & pV(1,i) > alphaLlr && ad(2,i) > alphaHy
+        plot(ad(1,i),pr(i),'square','Color','#c51b7d','MarkerSize',15,HandleVisibility='off');
+    elseif vuongRes(i) == 1 && ad(1,i) > alphaHy & pV(1,i) < alphaLlr && ad(2,i) > alphaHy
+        plot(ad(1,i),pr(i),'square','Color','#c51b7d','MarkerSize',15,'LineWidth',4,HandleVisibility='off');
+    elseif vuongRes(i) == 2 && ad(2,i) > alphaHy & pV(1,i) > alphaLlr && ad(1,i) > alphaHy
+        plot(ad(2,i),pr(i),'square','Color','#4d9221','MarkerSize',15,HandleVisibility='off');
+    elseif vuongRes(i) == 2 && ad(2,i) > alphaHy & pV(1,i) < alphaLlr && ad(1,i) > alphaHy
+        plot(ad(2,i),pr(i),'square','Color','#4d9221','MarkerSize',15,'LineWidth',4,HandleVisibility='off');
+    end
+end
+plot(ad(1,:),pr,'o-','Color','#c51b7d','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5,'HandleVisibility','off');
+plot(ad(2,:),pr,'o-','Color','#4d9221','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5,'HandleVisibility','off');
+xlabel('A-D $p$-value',Interpreter='latex',FontSize=13);
+set(gca, 'XScale', 'log');
+hold off
+grid minor;
+% ylim([limits(1) limits(2)]);
+xlim([0.1*alphaHy 1]);
+set(gca,'YDir','reverse');
+% set(gca,"YTick",limits(1):10:limits(2));
+ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
