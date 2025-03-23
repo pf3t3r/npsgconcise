@@ -1,6 +1,6 @@
 clear;clc;close all;
 format longG;
-addpath("func\");
+addpath("func\"); addpath("baroneRoutines\");
 
 % omnibus script to recreate all Stn ALOHA figures with BATS data.
 
@@ -441,6 +441,7 @@ for i = 1:20
     end
 end
 
+%% chl-a L0. Only cruises where DCM < ML.
 % Figure 2X. chl-a. L0. Is the data normal or lognormal? This time we look
 % at only those cruises where the DCM was beneath the MLD.
 
@@ -462,24 +463,29 @@ end
 set(gca,"YDir","reverse"); legend();
 yticklabels(0:20:200);
 ylim([0 20]);
-ylabel("Depth (m) (10-m bins)");
+ylabel("Pressure [dbar]",Interpreter='latex',FontSize=13);
 yyaxis right
-yline(meanCM,DisplayName="p_{DCM} \pm 5/95",Interpreter="latex");
-yline(CM_5pct,HandleVisibility="off");
-yline(CM_95pct,HandleVisibility="off");
-xline(0.005,":","\alpha","DisplayName","\alpha = 0.005");
+yline(meanCM,DisplayName="p_{DCM} \pm 5/95",LineWidth=1,Color="#808080",Interpreter="latex");
+yline(CM_5pct,LineWidth=1,Color="#808080",HandleVisibility="off");
+yline(CM_95pct,LineWidth=1,Color="#808080",HandleVisibility="off");
+xline(0.005,'-','\color{black}\alpha=0.005',LineWidth=1.5,Color="#808080",HandleVisibility="off",LabelOrientation="horizontal",LabelHorizontalAlignment="center",FontSize=13);
 hold off
 set(gca,"YDir","reverse"); legend();
 yticklabels({});
 ylim([0 200]);
-xlim([1e-3 1]);
-xlabel("p-value");
+xlim([0.5e-3 1]);
+xlabel("A-D p-value",Interpreter='latex',FontSize=13);
+ax = gca;
+ax.YAxis(1).Color = 'k';
+ax.YAxis(2).Color = 'k';
+legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);
+grid on
 
 subplot(1,3,3)
 barh(obs,'FaceColor','#d3d3d3');
 hold on
 xline(30);
-set(gca,"YDir","reverse"); xlabel("No. of Obs.");
+set(gca,"YDir","reverse"); xlabel("No. of Obs.",Interpreter='latex',FontSize=13);
 ylim([0.5 20.5]); yticklabels({});
 
 %% Find DCM according to CTD.
@@ -658,15 +664,17 @@ xlabel('A-D $p$-value',Interpreter='latex',FontSize=13);
 hold off
 set(gca, 'XScale', 'log');
 grid minor;
-xlim([0.1*alphaHy 1]); ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
+xlim([0.1*alphaHy 1]); 
+ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
 set(gca,'YDir','reverse');
 legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);
+sgtitle("L1","Interpreter","latex");
 
 %% BATS L2 Analysis.
 
 % Set whether to analyse total data or...
 % only data for cruises where the DCM is beneath the ML 
-dcmBeneathML = false;
+dcmBeneathML = true;
 
 % Import data.
 idIn = num2str(D(:,1));
@@ -881,7 +889,7 @@ set(gca,'YDir','reverse');
 yticklabels({});
 xlabel('No. of Obs.',Interpreter='latex',FontSize=13);
 % ylim([1 1+b-a]);
-ylim([5 40]);
+ylim([14 26]);
 
 subplot(1,3,[1 2])
 xline(alphaHy,'-','\color{black}\alpha=0.005',LineWidth=1.5,Color="#808080",HandleVisibility="off",LabelOrientation="horizontal",LabelHorizontalAlignment="center",FontSize=13);
@@ -903,8 +911,9 @@ xlabel('A-D $p$-value',Interpreter='latex',FontSize=13);
 set(gca, 'XScale', 'log');
 hold off
 grid minor;
-% ylim([limits(1) limits(2)]);
+ylim([-60 60]);
 xlim([0.1*alphaHy 1]);
 set(gca,'YDir','reverse');
 % set(gca,"YTick",limits(1):10:limits(2));
 ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
+sgtitle("L2","Interpreter","latex");
