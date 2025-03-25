@@ -1,4 +1,4 @@
-function [ax,ks,obs,pB,X,ad] = L0_helper(tmp,threshold,hypTest,logAxis,season)
+function [ax,ks,obs,pB,X,ad] = L0_helper(tmp,threshold,hypTest,logAxis,season,figSuppress)
 %L0_helper
 %INPUT: tmp = text-file with pressure, bottle concentration, and bottle ID;
 %OUTPUT: ks = K-S p-value, obs = no. of observations, 
@@ -6,6 +6,10 @@ function [ax,ks,obs,pB,X,ad] = L0_helper(tmp,threshold,hypTest,logAxis,season)
 
 meanDcm = load("datafiles/timeSeriesMeanDcm.mat").timeSeriesMeanDcm;
 meanPrc = load("datafiles\timeSeriesPrctl.mat").timeSeriesPrctl;
+
+if nargin <6
+    figSuppress = false;
+end
 
 if nargin < 5
     season = 0;
@@ -157,42 +161,47 @@ ks(:,obs<threshold) = nan;
 ad(:,obs<threshold) = nan;
 
 pXX = 5:10:195;
-ax = figure;
-subplot(1,3,3)
-barh(obs,'FaceColor','#d3d3d3');
-xline(threshold);
-ylim([0.5 20.5]);
-yticks(0.5:2:20.5);
-yticklabels({});
-set(gca,"YDir","reverse");
-xlabel("No. of Obs.",Interpreter="latex",FontSize=13);
-% ylabel("P [dbar]",FontSize=15);
 
-subplot(1,3,[1 2])
-xline(alphaHy,'-','\color{black}\alpha=0.005',LineWidth=1.5,Color="#808080",HandleVisibility="off",LabelOrientation="horizontal",LabelHorizontalAlignment="center",FontSize=13); 
-hold on
-if strcmp(hypTest,'ks')
-    plot(ks(2,:),pXX,'o-','Color','#4d9221',LineWidth=1.5,MarkerSize=5,DisplayName="Lognormal");
-    xlabel('K-S $p$-value',Interpreter='latex',FontSize=13);
-else
-    plot(ad(2,:),pXX,'o-','Color','#c51b7d',LineWidth=1.5,MarkerSize=5,DisplayName="Normal");
+if figSuppress == false
+    ax = figure;
+    subplot(1,3,3)
+    barh(obs,'FaceColor','#d3d3d3');
+    xline(threshold);
+    ylim([0.5 20.5]);
+    yticks(0.5:2:20.5);
+    yticklabels({});
+    set(gca,"YDir","reverse");
+    xlabel("No. of Obs.",Interpreter="latex",FontSize=13);
+    % ylabel("P [dbar]",FontSize=15);
+    
+    subplot(1,3,[1 2])
+    xline(alphaHy,'-','\color{black}\alpha=0.005',LineWidth=1.5,Color="#808080",HandleVisibility="off",LabelOrientation="horizontal",LabelHorizontalAlignment="center",FontSize=13); 
     hold on
-    plot(ad(1,:),pXX,'o-','Color','#4d9221',LineWidth=1.5,MarkerSize=5,DisplayName="Lognormal");
-    yline(meanDcm,DisplayName="$\bar{p}_{dcm} \pm$ 5/95");
-    yline(meanPrc(1),LineWidth=0.25,HandleVisibility="off");
-    yline(meanPrc(2),LineWidth=0.25,HandleVisibility="off");
-    hold off
-    xlabel('A-D $p$-value',Interpreter='latex',FontSize=13);
+    if strcmp(hypTest,'ks')
+        plot(ks(2,:),pXX,'o-','Color','#4d9221',LineWidth=1.5,MarkerSize=5,DisplayName="Lognormal");
+        xlabel('K-S $p$-value',Interpreter='latex',FontSize=13);
+    else
+        plot(ad(2,:),pXX,'o-','Color','#c51b7d',LineWidth=1.5,MarkerSize=5,DisplayName="Normal");
+        hold on
+        plot(ad(1,:),pXX,'o-','Color','#4d9221',LineWidth=1.5,MarkerSize=5,DisplayName="Lognormal");
+        yline(meanDcm,DisplayName="$\bar{p}_{dcm} \pm$ 5/95");
+        yline(meanPrc(1),LineWidth=0.25,HandleVisibility="off");
+        yline(meanPrc(2),LineWidth=0.25,HandleVisibility="off");
+        hold off
+        xlabel('A-D $p$-value',Interpreter='latex',FontSize=13);
+    end
+    if logAxis == true
+        set(gca, 'XScale', 'log');
+        %xline(0.05,':',HandleVisibility='off',LineWidth=1);
+        %xline(0.1,':',HandleVisibility='off',LineWidth=1);
+    end
+    ylim([0 200]); xlim([0.1*alphaHy 1]);
+    set(gca,'YDir','reverse');
+    ylabel("Pressure [dbar]",Interpreter="latex",FontSize=13);
+    grid minor;
+    legend(FontSize=13,Interpreter="latex");
+else
+    ax = nan;
 end
-if logAxis == true
-    set(gca, 'XScale', 'log');
-    %xline(0.05,':',HandleVisibility='off',LineWidth=1);
-    %xline(0.1,':',HandleVisibility='off',LineWidth=1);
-end
-ylim([0 200]); xlim([0.1*alphaHy 1]);
-set(gca,'YDir','reverse');
-ylabel("Pressure [dbar]",Interpreter="latex",FontSize=13);
-grid minor;
-legend(FontSize=13,Interpreter="latex");
 
 end

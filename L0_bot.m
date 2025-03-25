@@ -1,21 +1,22 @@
-% Script to output L0 bottle results for the statistical analysis.
+% Statistical Analysis of upper 200 dbar at Station ALOHA for chl-a, other pigments, and BGC variables.
+% We import the data and run a hypothesis test on it with the respective
+% null hypotheses of normal and lognormal. We use the Anderson-Darling test
+% since this is both more powerful than similar tests such as
+% Kolmogorov-Smirnov and more flexible than tests such as Shapiro-Wilks
+% which did not easily allow for testing of other distributions.
 
 clear; clc; close all;
-addpath("baroneRoutines\");
 addpath("func\");
 set(groot, 'defaultFigureUnits', 'centimeters', 'defaultFigurePosition', [3 3 15 15]);
-% tmpT = "";
 
 % Possible test cases.
-principleAnalysis = true;  % main analysis
-seasonalAnalysisAd = false;  % seasonality of statistics: A-D
-analyseStartYear = false;  % analyse effect (if any) of varying start year 
-                            % on distributions
-analyseEndYear = false;      % effect of varying end year
-crn131 = false;             % analyse 2001-2021 data (to mirror CTD results)
-nightAnalysis = false;      % analyse night-time 2001-2021 (to mirror CTD 
-                            % results)
-logAxes = true;            % output p-values as log values
+principle = true;       % main analysis
+seasonal = false;       % seasonality of statistics: A-D
+startYear = false;      % analyse effect (if any) of varying start year on 
+                        % distributions
+newCtd = false;         % analyse 2001-2021 data (to mirror CTD results)
+night = false;          % analyse night-time 2001-2021 (to mirror CTD results)
+logAxes = true;         % output p-values as log values
 
 if logAxes == true
     lp = "log/";
@@ -23,10 +24,16 @@ else
     lp = "";
 end
 
-%% Stn ALOHA chl-a. Hovmoeller.
-tmp = importdata('data/L0/hplcChla_88-21_200.txt');
-[ax,~,~,pB,X,botId] = L0_helper(tmp,50,'ad');
+%% Chl-a depth and time-series.
+% Import Chl-a data and transform the data.
+% Plot the depth and time-series of chla across the upper 200 dbar (approx
+% 200 m) between 1988 and 2021.
 
+% Import data file
+tmp = importdata('data/L0/hplcChla_88-21_200.txt');
+
+% Import binned pressure and concentration of chl-a
+[~,~,~,pB,chla,~] = L0_helper(tmp,50,'ad',true,0,true);
 
 time = tmp.data(:,2);
 hms = tmp.data(:,3);
@@ -90,37 +97,19 @@ chlagrid = NaN(320,20);
 % First Case.
 pgrid(1,1:(newCast(2)-newCast(1))) = pB(newCast(1):newCast(2)-1);
 tgrid(1,1:(newCast(2)-newCast(1))) = time2(newCast(1):newCast(2)-1);
-chlagrid(1,1:(newCast(2)-newCast(1))) = X(newCast(1):newCast(2)-1);
+chlagrid(1,1:(newCast(2)-newCast(1))) = chla(newCast(1):newCast(2)-1);
 
 % Then Loop.
-% i = 2:319
 for i = 2:319
     pgrid(i,1:(newCast(i+1)-newCast(i))) = pB(newCast(i):newCast(i+1)-1);
     tgrid(i,1:(newCast(i+1)-newCast(i))) = time2(newCast(i):newCast(i+1)-1);
-    chlagrid(i,1:(newCast(i+1)-newCast(i))) = X(newCast(i):newCast(i+1)-1);
-    %pgrid(3,1:(newCast(4)-newCast(3))) = pB(newCast(3):newCast(4)-1);
+    chlagrid(i,1:(newCast(i+1)-newCast(i))) = chla(newCast(i):newCast(i+1)-1);
 end
 
 % Final Case.
 pgrid(320,1:(length(pB)+1-newCast(320))) = pB(newCast(320):length(pB));
 tgrid(320,1:(length(time2)+1-newCast(320))) = time2(newCast(320):length(time2));
-chlagrid(320,1:(length(X)+1-newCast(320))) = X(newCast(320):length(X));
-
-% newpgrid = 10*pgrid-5;
-
-% figure;
-% s = surf(tgrid,pgrid,chlagrid);
-% colormap(flipud(cbrewer2("GnBu")));
-% view([0 -90]);
-% s.EdgeColor ="interp";
-% c = colorbar;
-% c.Label.String = 'chl-a [ng/l]';
-% xlim([tgrid(1,1) tgrid(320,12)]);
-% ylim([1 18]);
-% zlim([0 500]);
-% yticklabels(15:20:175);
-% ylabel("P [dbar]"); xlabel("Time");
-
+chlagrid(320,1:(length(chla)+1-newCast(320))) = chla(newCast(320):length(chla));
 
 tgridDatenum = datenum(tgrid);
 
@@ -135,13 +124,12 @@ c.FontSize = 13;
 ylim([1 18]);
 zlim([0 500]);
 yticks(1:1:18);
-% yticklabels({});
 yticklabels(5:10:175);
 ylabel("P [dbar]","FontSize",13); xlabel("Time",FontSize=13);
 ax = gca;
 ax.FontSize = 15;
 
-%% Stn ALOHA. chl-a. Mean profile.
+%% Chl-a mean profile.
 
 chlaProfile = nan(1,20);
 f5 = nan(1,20);
@@ -180,13 +168,13 @@ ax = gca;
 ax.FontSize = 15;
 
 
-%% Parameters vs Depth
+%% Chl-a. Parameters vs Depth (assuming a lognormal distribution).
 
 
 XN = nan(20,500);
 for i = 1:20
     loc = find(pB == i);
-    XN(i,1:length(loc)) = X(loc);
+    XN(i,1:length(loc)) = chla(loc);
 end
 
 figure;
@@ -208,8 +196,37 @@ plot(exp(phat(:,2)),depths);
 title("$\sigma^*$",Interpreter="latex"); set(gca,"YDir","reverse");
 sgtitle("chlorophyll concentration parameters L0 (1988-2021)");
 
-%% Seasonal Analysis: A-D
-if seasonalAnalysisAd == true
+%% A-D Tests.
+if principle == true    
+    
+    % A-D
+    tmpT = "-ad";
+    
+    % chla
+    tmpX ="";
+    tmp = importdata('data/L0/hplcChla_88-21_200.txt');
+    [ax,~,~,pB,chla] = L0_helper(tmp,50,'ad');
+    %sgtitle("L0 chl-$a$ 1988-2021"+tmpX,"Interpreter","latex");
+    exportgraphics(ax,"figures/L0/bot/" + lp + "chla" + tmpT + ".png");
+    clearvars -except tmpT startYear newCtd night logAxes lp seasonal;
+    
+    % chlb
+    tmp = importdata('data/L0/chlb_88-21_200.txt');
+    [ax,~,~] = L0_helper(tmp,50,'ad');
+    sgtitle("L0: Chl $b$"+tmpT,"Interpreter","latex");
+    exportgraphics(ax,"figures/L0/bot/" + lp + "chlb" + tmpT + ".png");
+    clearvars -except tmpT startYear newCtd night logAxes lp seasonal;
+    
+    % pc
+    tmp = importdata('data/L0/pc_89-22_200.txt');
+    [ax,~,~] = L0_helper(tmp,50,'ad');
+    sgtitle("L0: Particulate Carbon"+tmpT,"Interpreter","latex");
+    exportgraphics(ax,"figures/L0/bot/" + lp + "pc" + tmpT + ".png");
+    clearvars -except tmpT startYear newCtd night logAxes lp seasonal;
+    
+end
+%% A-D tests. Seasonal.
+if seasonal == true
 
     pVals = [];
 
@@ -235,7 +252,7 @@ if seasonalAnalysisAd == true
 
     % chla
     tmp = importdata('data/L0/hplcChla_88-21_200.txt');
-    [ax,~,~,pB,X,ad] = L0_helper(tmp,50,"ad",logAxes,2);
+    [ax,~,~,pB,chla,ad] = L0_helper(tmp,50,"ad",logAxes,2);
     sgtitle("L0: Chl $a$ (1988-2021)"+tmpT,"Interpreter","latex");
     exportgraphics(ax,"figures/L0/bot/"+lp+"chla" + tmpT + ".png");
     clear tmp ax; pVals = [pVals; ad([1 3])];
@@ -293,38 +310,10 @@ if seasonalAnalysisAd == true
     exportgraphics(ax,"figures/L0/bot/synthSsnl/chla_ad.png");
 end
 
-%% Principal Analysis
-if principleAnalysis == true    
-    
-    % A-D
-    tmpT = "-ad";
-    
-    % chla
-    tmpX ="";
-    tmp = importdata('data/L0/hplcChla_88-21_200.txt');
-    [ax,~,~,pB,X] = L0_helper(tmp,50,'ad');
-    %sgtitle("L0 chl-$a$ 1988-2021"+tmpX,"Interpreter","latex");
-    exportgraphics(ax,"figures/L0/bot/" + lp + "chla" + tmpT + ".png");
-    clearvars -except tmpT analyseStartYear crn131 nightAnalysis logAxes lp;
-    
-    % chlb
-    tmp = importdata('data/L0/chlb_88-21_200.txt');
-    [ax,~,~] = L0_helper(tmp,50,'ad');
-    sgtitle("L0: Chl $b$"+tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L0/bot/" + lp + "chlb" + tmpT + ".png");
-    clearvars -except tmpT analyseStartYear crn131 nightAnalysis logAxes lp;
-    
-    % pc
-    tmp = importdata('data/L0/pc_89-22_200.txt');
-    [ax,~,~] = L0_helper(tmp,50,'ad');
-    sgtitle("L0: Particulate Carbon"+tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L0/bot/" + lp + "pc" + tmpT + ".png");
-    clearvars -except tmpT analyseStartYear crn131 nightAnalysis logAxes lp;
-    
-end
-
-%% 2001-2021 chla (starting CRN 131, to match newer fluorometer)
-if crn131 == true
+%% A-D tests. Chl-a, 2001-2021.
+% Starting with cruise no. 131. This is to compare with the newer
+% fluorometer on the CTD that entered use on this cruise.
+if newCtd == true
     
     % A-D
     tmpT = "-ad";
@@ -332,14 +321,14 @@ if crn131 == true
     [ax,~,~] = L0_helper(tmp,50,'ad');
     sgtitle("L0: Chl $a$ (2001-2021)"+tmpT,"Interpreter","latex");
     exportgraphics(ax,"figures/L0/bot/" + lp + "chla_01-21" + tmpT + ".png");
-    clearvars -except tmpT analyseStartYear crn131 nightAnalysis logAxes lp;
+    clearvars -except tmpT startYear newCtd night logAxes lp;
 
 else
     disp("Not analysing CRN 131 only data...");
 end
 
-%% Chl-a 2001-2022 NIGHT-TIME
-if nightAnalysis == true
+%% A-D tests. Chl-a, 2001-2022, night-time only.
+if night == true
         
     tmpT = "";
     tmp = importdata('data/L0/hplcChla_01-22_200.txt');
@@ -410,24 +399,23 @@ if nightAnalysis == true
     [ax,~,~] = L0_helper(tmp,50,"ks",logAxes);
     sgtitle("L0: Chl $a$ (2001-2021, NIGHT)","Interpreter","latex");
     exportgraphics(ax,"figures/L0/bot/" + lp + "chla_01-21_night" + tmpT + ".png");
-    clearvars -except tmpT analyseStartYear crn131 nightAnalysis logAxes lp;
+    clearvars -except tmpT startYear newCtd night logAxes lp;
 
 else
     disp("Not analysing night-time only data...");
 end
 
-%% Year-by-year analysis for chla
+%% A-D tests. Chl-a. Start-Year Analysis.
 % Here we move the start date of the analysis forward in time to see if
 % the distribution of data has some dependence on time. It will only be
-% checked if "analyseStartYear" is true.
+% checked if "startYear" is true.
 
-if analyseStartYear==true
+if startYear==true
     
     % save p-values per year
     yearList = 1988:1:2016;
     pVals = [];
     
-    %% chla (A-D): go back year by year.
     tmpT = "-ad";
     
     % 2016-2022
@@ -633,7 +621,7 @@ if analyseStartYear==true
     exportgraphics(ax,"figures/L0/bot/" + lp + "chla_89-22" + tmpT + ".png");
     clear ax tmp; pVals = [pVals; ad([1 3])];
 
-    %% start-year analysis synthesis plot
+    % start-year analysis synthesis plot
     ax = figure;
     subplot(1,2,1)
     semilogy(flip(yearList),pVals(1:29,:)); grid on;

@@ -1,4 +1,4 @@
-function [ax,p,ks,obs,Sk,Ku,rV,pV,ad,cOut,pOut] = L1_helper(tmp,maxMld,threshold,testSel,hypTest,logAxis,season)
+function [ax,p,ks,obs,Sk,Ku,rV,pV,ad,cOut,pOut] = L1_helper(tmp,maxMld,threshold,testSel,hypTest,logAxis,season,suppressFig)
 %%L1_helper: this function makes the calculation of KS p-values, skewness,
 %%and kurtosis a little more efficient for L1 (the mixed layer). 
 % INPUTS
@@ -16,6 +16,9 @@ function [ax,p,ks,obs,Sk,Ku,rV,pV,ad,cOut,pOut] = L1_helper(tmp,maxMld,threshold
 % Sk = skewness at depths where ks is taken,
 % Ku = kurtosis at the same depths.
 
+if nargin < 8
+    suppressFig = false;
+end
 if nargin < 7
     season = 0;
     % 0 = no seasonal analysis, 1 = winter, 2 = spring, 3 = summer,
@@ -113,13 +116,149 @@ end
 
 
 % 2. Extract data in ML
-[idOut,pOut,cOut] = extractMldVals(idIn,pIn,cIn,maxMld);
+% [idOut,pOut,cOut] = extractMldVals(idIn,pIn,cIn,maxMld);
+
+tmp = num2str(idIn);
+bottleCRN = str2num(tmp(:,1:3));
+clear tmp;
+
+L = length(pIn);
+
+% OPTION 2
+tmpP = nan(1,L);
+tmpCrn = nan(1,L);
+tmpX = nan(1,L);
+tmpId = nan(1,L);
+
+for i = 1:L
+    if bottleCRN(i) == 330
+        stop = i;
+        break
+    elseif bottleCRN(i) > 330
+        stop = i;
+        break
+    else
+        stop = L+1;
+    end
+end
+
+% disp(stop);
+
+for i = 1:stop-1
+    % OPTION 2: MAX MLD per cruise. This is what we will use.
+    tmp = maxMld(bottleCRN(i));
+    if pIn(i) < tmp
+        tmpP(i) = pIn(i);
+        tmpCrn(i) = bottleCRN(i);
+        tmpX(i) = cIn(i);
+        tmpId(i) = idIn(i);
+    end
+end
+
+% OPTION 2
+pOut = tmpP(~isnan(tmpP));
+crnOut = tmpCrn(~isnan(tmpCrn));
+cOut = tmpX(~isnan(tmpX));
+idOut = tmpId(~isnan(tmpId));
+
 
 % 3. Bin data
-[~,pOutB,cOutB,~,~] = cleanAndBin(pOut,cOut,idOut');
+% [~,pOutB,cOutB,~,~] = cleanAndBin(pOut,cOut,idOut');
+
+% Remove bottles that are too close to the surface (< 2.5 dbar)
+idRm = pOut > 2.5;
+pOut = pOut(idRm);
+cOut = cOut(idRm);
+botid = idOut(idRm)';
+
+% Remove bottles where concentration of X = 0
+idZero = cOut == 0;
+pOut = pOut(~idZero);
+cOut = cOut(~idZero);
+botid = botid(~idZero);
+
+% Save cruise number (CRN) of each bottle - needed below
+tmp = num2str(botid);
+bottleCRN = str2num(tmp(:,1:3));
+clear tmp;
+
+% Remove bottles from cruises 330 on (b/c fluorescence analysis not done)
+for i = 1:length(pOut)
+    if bottleCRN(i) > 329
+        id329 = i - 1;
+        break;
+    else
+        id329 = length(pOut);
+    end
+end
+
+pOut = pOut(1:id329);
+cOut = cOut(1:id329);
+clear idRm idZero id329 i;
+
+% pb5 = discretize(pOut,0:5:200);
+pb10 = discretize(pOut,0:10:200);
+% n5 = max(pb5);
+n10 = max(pb10);
+
+cOutB = cOut;
+pOutB = pb10;
+
+
 
 % 4. Calculate KS p-value, skewness, kurtosis, Vuong Parameters
-[ks,obs,p,Sk,Ku,rV,pV,ad] = ksOfBinnedCon(cOutB,pOutB,10,threshold);
+% [ks,obs,p,Sk,Ku,rV,pV,ad] = ksOfBinnedCon(cOutB,pOutB,10,threshold);
+
+obs = nan(20,1); n = 20; depth = 5:10:200; ad = nan(4,20);
+std = nan(1,n);
+for i = 1:n
+    % find concentration X_i at binned pressure i
+    X_i = cOutB(pOutB==i);
+    % apply KS test to X_i
+    % change limit below to >3 to fix error with picoeu -> may change other
+    % results    
+    if length(X_i) > 3
+        gammaParams = mle(X_i,"distribution","Gamma");
+        pdG = makedist("Gamma",gammaParams(1),gammaParams(2));
+        [~,ks(:,i),~] = statsplot2(X_i,'noplot');
+        [~,ad(2,i)] = adtest(X_i,"Distribution","logn","Alpha",0.005);
+        [~,ad(1,i)] = adtest(X_i,"Distribution","norm","Alpha",0.005);
+        [~,ad(3,i)] = adtest(X_i,"Distribution","weibull");
+        [~,ad(4,i)] = adtest(X_i,Distribution=pdG,MCTol=0.05);
+        [rV(:,i),pV(:,i)] = bbvuong(X_i);
+        sk(i) = skewness(X_i);
+        ku(i) = kurtosis(X_i);
+    end
+    obs(i) = length(X_i);
+    clear X_i;
+end
+
+for i = 1:n
+    if obs(i) < threshold
+        ad(:,i) = nan;
+        ks(:,i) = nan;
+        sk(i) = nan;
+        ku(i) = nan;
+        rV(:,i) = nan;
+        pV(:,i) = nan;
+    end
+end
+
+tmp = [];
+for i = 1:n
+    if ~isnan(sum(ad(:,i)))
+        tmp = [tmp i];
+    end
+end
+p = depth(tmp);
+Sk = sk(tmp);
+Ku = ku(tmp);
+%sd = sd(tmp,:);
+rV = rV(:,tmp);
+pV = pV(:,tmp);
+ks = ks(:,~all(isnan(ks)));
+ad = ad(:,~all(isnan(ad)));
+
 
 % 4.a. Intercomparison of results from Vuong's Test: easily see best
 % distribution at each depth.
@@ -156,7 +295,11 @@ elseif testSel == 2
 end
 
 % 5. Plot results
-ax = figure;
-plotKs(p,ks,obs,Sk,Ku,0.5,10.5,true,threshold,vuongRes,pV,[0 100],false,hypTest,ad,testSel);
+if suppressFig == false
+    ax = figure;
+    plotKs(p,ks,obs,Sk,Ku,0.5,10.5,true,threshold,vuongRes,pV,[0 100],false,hypTest,ad,testSel,"bot",logAxis);
+else
+    ax = nan;
+end
 
 end
