@@ -1,36 +1,40 @@
+% omnibus script to recreate all Stn ALOHA figures with BATS chl-a data.
+
 clear;clc;close all;
 format longG;
 addpath("func\"); addpath("baroneRoutines\");
 
-% omnibus script to recreate all Stn ALOHA figures with BATS data.
-
 showOtherTests = false;     % Evaluate data with Lilliefors and chi^2 tests.
                             % (in addition to Anderson-Darling)
-showL0title = false;        % Leave as 'false' for paper.
+showL0title = false;        % Leave as 'false' for paper figures.
 
 %% Import DCM file for BATS
+% This was calculated manually on Excel for BATS cruises 1-405.
 A = importdata("data\dcm_BATS.txt");
 dcmBats = A.data;
 
-%% BATS. chl-a. Hovmoeller. (Fig 1a)
+%% Time-series (Hovmoeller plot). (Fig 1a)
 
-% Import Data.
+% Import Data: ID, Time, Depth, Chl-a.
 D = importdata('data\L0\bats_pigments.txt').data;
-id = D(:,1);      % bottle ID with format !####$$$@@, where ! = cruise
-                    % type (1 = core cruise), #### = cruise number, 
-                    % $$$ = cast number, @@ = Niskin number.
-YMD = D(:,2);     % Year, Month, and Day.
-hhmm = D(:,4);    % hours and minutes.
-QF = D(:,7);      % Quality control factor.
-depth = D(:,8);           % Depth (m).
-chla = D(:,22);           % chl-a concentration (ng/l).
-chla_Turner = D(:,24);    % as above but using Turner method (ng/l).
+id = D(:,1);                % Bottle ID with format !####$$$@@, where
+                            % ! = cruise type (1 = core cruise),
+                            % #### = cruise number, $$$ = cast number,
+                            % @@ = Niskin number.
+YMD = D(:,2);               % Year, Month, and Day.
+hhmm = D(:,4);              % hours and minutes.
+QF = D(:,7);                % Quality control factor.
+depth = D(:,8);             % Depth (m).
+chla = D(:,22);             % Chl-a concentration (ng/l).
+chla_Turner = D(:,24);      % Chl-a concentration, Turner method (ng/l).
 
 % Re-assign NaNs.
 chla(chla==-999) = nan;
 chla_Turner(chla_Turner==-999) = nan;
 
 % Set up time vector.
+YY = nan(length(YMD),1); MM = nan(length(YMD),1); DD = nan(length(YMD),1);
+hh = nan(length(YMD),1); mm = nan(length(YMD),1);
 for i = 1:length(YMD)
     tmp1 = num2str(YMD(i));
     YY(i) = str2num(tmp1(1:4));
@@ -50,7 +54,7 @@ for i = 1:length(YMD)
         mm(i) = nan;
     end
 end
-ss = zeros(1,length(mm));
+ss = zeros(length(YMD),1);
 t = datetime(YY,MM,DD,hh,mm,ss);
 clear YY MM DD hh mm ss;
 
@@ -135,7 +139,7 @@ ylabel("P [dbar]","FontSize",13); xlabel("Time",FontSize=13);
 ax = gca;
 ax.FontSize = 15;
 
-%% BATS. chla-a. Mean profile. (Fig. 1b)
+%% Mean profile of time-series. (Fig. 1b)
 
 % Calculate the mean chl-a at each depth bin as well as the 5th and 95th
 % percentile values.
@@ -172,7 +176,7 @@ ax = gca;
 ax.FontSize = 15;
 
 
-%% BATS. chl-a. A-D test. (Fig. 2)
+%% A-D test: L0. (Fig. 2) [complete time series]
 
 % Find the depth of the Chlorophyll Maximum (CM). NOTE that in the case of
 % BATS that this is not necessarily a deep maximum. We will separate the
@@ -237,9 +241,12 @@ yline(CM_95pct,HandleVisibility="off");
 xline(0.005,":","\alpha","DisplayName","\alpha = 0.005");
 hold off
 set(gca,"YDir","reverse"); legend();
-yticklabels({});
+yticklabels({}); grid on;
+ax = gca;
+ax.YAxis(1).Color = 'k';
+ax.YAxis(2).Color = 'k';
 ylim([0 200]);
-xlim([1e-3 1]);
+xlim([0.5e-3 1]);
 xlabel("p-value");
 
 subplot(1,3,3)
@@ -249,7 +256,9 @@ xline(30);
 set(gca,"YDir","reverse"); xlabel("No. of Obs.");
 ylim([0.5 20.5]); yticklabels({});
 
-%% Calculate MLD for BATS from temperature and salinity data. (prep Fig. 3)
+%% Find Mixed Layer Depth
+% Calculate the Mixed Layer Depth (MLD) from hydrographic data. This is
+% needed for separating the L0 analysis into L1 and L2.
 
 % Import data.
 data = importdata("data\bats_bottle.txt").data;
@@ -319,7 +328,9 @@ mld_pc(405) = gsw_mlp(SA(64123:end),CT(64123:end),p(64123:end));
 mld_pc(mld_pc>300) = nan;
 mld_pc(isnan(mld_pc)) = 20;
 
-%% DCM vs MLP. In terms of CRN.
+%% Compare depths: DCM vs ML
+% Compare the depth of the DCM and the ML for each cruise. We are
+% interested in those cruises where the DCM is deeper than the ML.
 
 % Convert DCM depth (m) to DCM pressure (dbar).
 p_DCM = gsw_p_from_z(-dcmBats(:,2),lat(1));
@@ -349,7 +360,8 @@ set(gca,"YDir","reverse");
 ylabel("Pressure [dbar]"); xlabel("Cruise No.");
 legend();
 
-%% Check where DCM is beneath MLD.
+% Calculate where DCM is beneath the ML. This is important because it is on
+% these cruises where we apply our L1/L2 analysis.
 
 dcmBelow = dcmBats(:,2) - newMlp;
 cruisesWhereDCMisBelowMLD = [];
@@ -359,7 +371,6 @@ for i = 1:405
         cruisesWhereDCMisBelowMLD = [cruisesWhereDCMisBelowMLD i];
     end
 end
-
 
 figure
 plot(1:1:405,dcmBelow);
@@ -441,7 +452,7 @@ for i = 1:20
     end
 end
 
-%% chl-a L0. Only cruises where DCM < ML.
+%% A-D test: L0. (Fig. 2) [DCM deeper than ML]
 % Figure 2X. chl-a. L0. Is the data normal or lognormal? This time we look
 % at only those cruises where the DCM was beneath the MLD.
 
@@ -488,10 +499,8 @@ xline(30);
 set(gca,"YDir","reverse"); xlabel("No. of Obs.",Interpreter='latex',FontSize=13);
 ylim([0.5 20.5]); yticklabels({});
 
-%% Find DCM according to CTD.
 
-
-%% BATS L1 analysis.
+%% L1 A-D. (Fig. 3a)
 threshold = 30;
 
 % Set whether to analyse total data or...
@@ -670,7 +679,74 @@ set(gca,'YDir','reverse');
 legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);
 sgtitle("L1","Interpreter","latex");
 
-%% BATS L2 Analysis.
+%% L1 Skewness/Kurtosis. (Fig. 4a)
+
+% Lognormal family: generate theoretical skewness and kurtosis
+sigTh = linspace(0,1,1000);
+for i = 1:length(sigTh)
+    skLogn(i) = (exp(sigTh(i)^2) + 2)*(sqrt(exp(sigTh(i)^2) - 1));
+    kuLogn(i) = exp(4*sigTh(i)^2) + 2*exp(3*sigTh(i)^2) + 3*exp(2*sigTh(i)^2) - 3;
+end
+% Negative distributions. For plotting purposes only.
+skLognN = -skLogn;
+kuLognN = kuLogn;
+
+kurtLimB = 10; skewLimA = 0; skewLimB = 2.5;
+if max(ku) > 10 & min(sk) < 0
+    kurtLimB = max(ku) + 1;
+    skewLimA = min(sk) - 0.1;
+    skewLimB = max(sk) + 0.1;
+elseif max(ku) > 10
+    kurtLimB = max(ku) + 1;
+    skewLimB = max(sk) + 0.1;
+elseif min(sk) < 0 
+    skewLimA = min(sk) - 0.1;
+elseif max(sk) > 2.5
+    kurtLimB = max(ku) + 1;
+    skewLimB = max(sk) + 0.1;
+else 
+    kurtLimB = 10;
+    skewLimA = 0;
+    skewLimB = 2.5;
+end
+
+ax = figure;
+scatter(nan,nan,72,[0.8 0.8 0.8],DisplayName='Data');
+hold on
+scatter(0,3,72,[0.2 0.2 0.2],'DisplayName','Normal',Marker='pentagram',LineWidth=2.5);
+plot(skLogn,kuLogn,'DisplayName','Lognormal','Color','#808080',LineStyle='-',LineWidth=1.3);
+plot(skLognN,kuLognN,'Color','#808080',LineStyle='-',LineWidth=1.3,HandleVisibility='off');
+scatter(sk,ku,72,[0.8 0.8 0.8],HandleVisibility="off");
+clr = 1:1:length(tr);
+scatter(sk,ku,54,clr,"filled","o",HandleVisibility="off");
+colormap(gca,cbrewer2("Greens"));
+cbar = colorbar;
+cbar.Direction = "reverse";
+cbar.Ticks = 1:1:length(tr);
+% cbar.TickLabels = p(1):10:p(end);
+cbar.TickLabels = tr;
+cbar.Label.String = "P [dbar]";
+cbar.Label.Position = [0.7 1-0.35];
+cbar.Label.Rotation = 0;
+% hold on
+% add polynomial
+% [skS,id] = sort(sk);
+% kuS = ku(id);
+% [p,S] = polyfit(skS,kuS,2);
+% [f,delta] = polyval(p,skS,S);
+% plot(skS,f,'r-',DisplayName="Fit");
+% plot(skS,f+2*delta,'m--',DisplayName='95% Prediction Interval');
+% plot(skS,f-2*delta,'m--',HandleVisibility='off');
+hold off
+grid minor;
+ylim([1 kurtLimB]); xlim([skewLimA skewLimB]);
+xlabel('Skewness','FontSize',13,'Interpreter','latex'); ylabel('Kurtosis',FontSize=13,Interpreter='latex');
+lgd = legend('Location','best');
+% title(lgd,'Distributions');
+title('L1','Interpreter','latex','FontSize',13);
+% sgtitle("L2 chl-$a$ skewness-kurtosis 1988-2021","Interpreter","latex");
+% exportgraphics(ax,"figures/L1/bottle/log/chla_ad_skKu.png");
+%% L2 A-D. (Fig. 3b)
 
 % Set whether to analyse total data or...
 % only data for cruises where the DCM is beneath the ML 
@@ -729,24 +805,14 @@ pOut = tmpP_subML(~isnan(tmpP_subML));
 cOut = tmpC_subML(~isnan(tmpC_subML));
 idOut = botID;
 
-% 3. Calculate KS p-value, skewness, kurtosis
-% ..., centre around DCM (?)
-% [pr,ks,obs,sk,ku,rV,pV,ad,X_out,bA,pB] = ksOfLagrangian(idSubml,pSubml,dcm,cSubml,threshold);
-
-% Extract cruise number 'crn' and 'cast'
-% MAYBE leave out cast?
+% Extract cruise number 'crn'
 crn = str2num(idOut(:,2:5)); 
-% cast = str2num(idOut(:,6:8));
-% cast(cast==100 | cast==80 | cast==81 | cast==82 | cast==83 | cast==84 | cast==85 | cast==86) = nan;
 
 bottleArray = [crn pOut];
 
 % Create an array of all unique bottle cruise/cast combinations
 botCrnCast = rmmissing(unique(bottleArray(:,1),"rows"));
 
-% Find these unique cruise/cast combinations in the 'dcm' array
-% I already chose the DCM as applying to the mean of all casts taken for a
-% particular cruise.
 dcmCrnCast = [];
 for i = 1:length(dcmBats(:,1))
     for x = 1:length(botCrnCast)
@@ -917,3 +983,71 @@ set(gca,'YDir','reverse');
 % set(gca,"YTick",limits(1):10:limits(2));
 ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
 sgtitle("L2","Interpreter","latex");
+
+%% L2 Skewness/Kurtosis. (Fig. 4b)
+
+% Output only skewness/kurtosis values at depths defined by these limits.
+% limits = [-60 60]
+a = 14; b = 26;
+tmp = [];
+for i = a:b
+    if ~isnan(sum(ad(:,i)))
+        tmp = [tmp i];
+    end
+end
+pr = pr(tmp);
+sk = sk(tmp);
+ku = ku(tmp);
+clear tmp;
+
+kurtLimB = 10; skewLimA = 0; skewLimB = 2.5;
+if max(ku) > 10 & min(sk) < 0
+    kurtLimB = max(ku) + 1;
+    skewLimA = min(sk) - 0.1;
+    skewLimB = max(sk) + 0.1;
+elseif max(ku) > 10
+    kurtLimB = max(ku) + 1;
+    skewLimB = max(sk) + 0.1;
+elseif min(sk) < 0 
+    skewLimA = min(sk) - 0.1;
+elseif max(sk) > 2.5
+    kurtLimB = max(ku) + 1;
+    skewLimB = max(sk) + 0.1;
+else 
+    kurtLimB = 10;
+    skewLimA = 0;
+    skewLimB = 2.5;
+end
+
+figure
+scatter(0,3,72,[0.2 0.2 0.2],'DisplayName','Normal',Marker='pentagram',LineWidth=2.5);
+hold on
+plot(skLogn,kuLogn,'DisplayName','Lognormal','Color','#808080',LineStyle='-',LineWidth=1.3);
+plot(skLognN,kuLognN,'Color','#808080',LineStyle='-',LineWidth=1.3,HandleVisibility='off');
+scatter(sk,ku,72,[0.8 0.8 0.8],HandleVisibility='off');
+clr = 1:1:length(pr);
+scatter(sk,ku,54,clr,"filled","o",HandleVisibility="off");
+% colormap(gca,flipud(colormap("hot")));
+colormap(gca,flipud(cbrewer2("PiYG")));
+cbar = colorbar;
+cbar.Direction = "reverse";
+cbar.Ticks = 1:1:length(pr);
+% cbar.TickLabels = pr(1):10:pr(end);
+cbar.TickLabels = pr;
+cbar.Label.String = "P [dbar]";
+cbar.Label.Position = [0.7 1-0.7];
+cbar.Label.Rotation = 0;
+% add polynomial
+% [skS,id] = sort(sk);
+% kuS = ku(id);
+% [p,S] = polyfit(skS,kuS,2);
+% [f,delta] = polyval(p,skS,S);
+% plot(skS,f,'r-',DisplayName="Fit");
+% plot(skS,f+2*delta,'m--',skS,f-2*delta,'m--');
+hold off
+grid minor;
+ylim([1 kurtLimB]); xlim([skewLimA skewLimB]);
+xlabel('Skewness',FontSize=13,Interpreter='latex'); 
+ylabel('Kurtosis',FontSize=13,Interpreter='latex');
+title('L2','Interpreter','latex','FontSize',13);
+% yticklabels({});
