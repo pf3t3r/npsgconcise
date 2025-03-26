@@ -175,6 +175,15 @@ ylim([1 18]); xlim([0 600]);
 ax = gca;
 ax.FontSize = 15;
 
+%% Histogram: L0.
+
+% figure;
+% histogram(chla(depth_B==5));
+
+% histfit variation
+chla((chla==0)) = nan;
+figure
+histfit(chla(depth_B==5),10,"lognormal");
 
 %% A-D test: L0. (Fig. 2) [complete time series]
 
@@ -570,6 +579,17 @@ idOut = idOut(~idZero);
 pb10 = discretize(pOut,0:10:200);
 n10 = max(pb10);
 
+%% Histogram: L1.
+
+figure;
+histogram(COut(pb10==1));
+
+% histfit variation
+COut(COut<=0) =nan;
+figure
+histfit(COut(pb10==4),10,"lognormal");
+
+%% L1 A-D plot.
 obs = nan(20,1);
 n = n10;
 depth = 5:10:200;
