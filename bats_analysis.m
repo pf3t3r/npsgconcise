@@ -183,7 +183,7 @@ ax.FontSize = 15;
 % histfit variation
 chla((chla==0)) = nan;
 figure
-histfit(chla(depth_B==5),10,"lognormal");
+histfit(chla(depth_B==2),10,"lognormal");
 
 %% A-D test: L0. (Fig. 2) [complete time series]
 
@@ -500,6 +500,7 @@ ax.YAxis(1).Color = 'k';
 ax.YAxis(2).Color = 'k';
 legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);
 grid on
+sgtitle("L0","Interpreter","latex");
 
 subplot(1,3,3)
 barh(obs,'FaceColor','#d3d3d3');
@@ -581,11 +582,11 @@ n10 = max(pb10);
 
 %% Histogram: L1.
 
+COut(COut<=0) =nan;
 figure;
 histogram(COut(pb10==1));
 
 % histfit variation
-COut(COut<=0) =nan;
 figure
 histfit(COut(pb10==4),10,"lognormal");
 
@@ -924,7 +925,19 @@ for i = 1:length(pr)
     end
 end
 rV(rV==0) = nan;
+%% L2 Histograms.
+% pB10, C_out
 
+C_out(C_out < 0) = nan;
+
+figure;
+histogram(C_out(pB10==-100));
+
+% histfit variation
+% figure
+% histfit(C_out(pB10==10),10,"lognormal");
+
+%% L2 A-D. Plot.
 % plotks2 code.
 figure
 n = length(pr);
