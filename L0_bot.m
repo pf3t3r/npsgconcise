@@ -17,6 +17,7 @@ startYear = false;      % analyse effect (if any) of varying start year on
 newCtd = false;         % analyse 2001-2021 data (to mirror CTD results)
 night = false;          % analyse night-time 2001-2021 (to mirror CTD results)
 logAxes = true;         % output p-values as log values
+showL0title = true;     % show title for chl-a plot. (off for paper)
 
 if logAxes == true
     lp = "log/";
@@ -190,13 +191,13 @@ depths = 5:10:195;
 figure;
 subplot(1,2,1)
 plot(exp(phat(:,1)),depths);
-title("$\mu^*$",Interpreter="latex"); set(gca,"YDir","reverse");
+title("$\mu^*$",Interpreter="latex"); set(gca,"YDir","reverse"); grid on
 subplot(1,2,2)
 plot(exp(phat(:,2)),depths);
-title("$\sigma^*$",Interpreter="latex"); set(gca,"YDir","reverse");
-sgtitle("chlorophyll concentration parameters L0 (1988-2021)");
+title("$\sigma^*$",Interpreter="latex"); set(gca,"YDir","reverse"); grid on
+sgtitle("L0 chl-$a$ parameters (1988-2021)",Interpreter="latex");
 
-%% A-D Tests.
+%% A-D Test.
 if principle == true    
     
     % A-D
@@ -206,26 +207,28 @@ if principle == true
     tmpX ="";
     tmp = importdata('data/L0/hplcChla_88-21_200.txt');
     [ax,~,~,pB,chla] = L0_helper(tmp,50,'ad');
-    %sgtitle("L0 chl-$a$ 1988-2021"+tmpX,"Interpreter","latex");
+    if showL0title == true
+        sgtitle("L0 chl-$a$"+tmpX,"Interpreter","latex");
+    end
     exportgraphics(ax,"figures/L0/bot/" + lp + "chla" + tmpT + ".png");
     clearvars -except tmpT startYear newCtd night logAxes lp seasonal;
     
     % chlb
     tmp = importdata('data/L0/chlb_88-21_200.txt');
     [ax,~,~] = L0_helper(tmp,50,'ad');
-    sgtitle("L0: Chl $b$"+tmpT,"Interpreter","latex");
+    sgtitle("L0: Chl $b$","Interpreter","latex");
     exportgraphics(ax,"figures/L0/bot/" + lp + "chlb" + tmpT + ".png");
     clearvars -except tmpT startYear newCtd night logAxes lp seasonal;
     
     % pc
     tmp = importdata('data/L0/pc_89-22_200.txt');
     [ax,~,~] = L0_helper(tmp,50,'ad');
-    sgtitle("L0: Particulate Carbon"+tmpT,"Interpreter","latex");
+    sgtitle("L0: Particulate Carbon","Interpreter","latex");
     exportgraphics(ax,"figures/L0/bot/" + lp + "pc" + tmpT + ".png");
     clearvars -except tmpT startYear newCtd night logAxes lp seasonal;
     
 end
-%% A-D tests. Seasonal.
+%% A-D Test: Seasonal.
 if seasonal == true
 
     pVals = [];
@@ -310,7 +313,7 @@ if seasonal == true
     exportgraphics(ax,"figures/L0/bot/synthSsnl/chla_ad.png");
 end
 
-%% A-D tests. Chl-a, 2001-2021.
+%% A-D test: Chl-a, 2001-2021.
 % Starting with cruise no. 131. This is to compare with the newer
 % fluorometer on the CTD that entered use on this cruise.
 if newCtd == true
@@ -319,7 +322,7 @@ if newCtd == true
     tmpT = "-ad";
     tmp = importdata('data/L0/hplcChla_01-22_200.txt');
     [ax,~,~] = L0_helper(tmp,50,'ad');
-    sgtitle("L0: Chl $a$ (2001-2021)"+tmpT,"Interpreter","latex");
+    sgtitle("L0: Chl $a$ (2001-2021)","Interpreter","latex");
     exportgraphics(ax,"figures/L0/bot/" + lp + "chla_01-21" + tmpT + ".png");
     clearvars -except tmpT startYear newCtd night logAxes lp;
 
@@ -327,7 +330,7 @@ else
     disp("Not analysing CRN 131 only data...");
 end
 
-%% A-D tests. Chl-a, 2001-2022, night-time only.
+%% A-D test: Chl-a, 2001-2022, night-time only.
 if night == true
         
     tmpT = "";
@@ -405,7 +408,7 @@ else
     disp("Not analysing night-time only data...");
 end
 
-%% A-D tests. Chl-a. Start-Year Analysis.
+%% A-D test: Chl-a. Start-Year Analysis.
 % Here we move the start date of the analysis forward in time to see if
 % the distribution of data has some dependence on time. It will only be
 % checked if "startYear" is true.

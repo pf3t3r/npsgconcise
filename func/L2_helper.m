@@ -1,4 +1,4 @@
-function [ax,X_out,pSubml,bA,ks,obs,sk,ku,rV,p,pV,ad,pr,vuongRes,cSubml,pB] = L2_helper(tmp,maxMld,dcm,threshold,testSel,hypTest,yLimits,yLimitsObs,season)
+function [ax,X_out,pSubml,bA,ks,obs,sk,ku,rV,p,pV,ad,pr,vuongRes,cSubml,pB] = L2_helper(tmp,pMaxMld,dcm,threshold,testSel,hypTest,yLimits,yLimitsObs,season,suppressFig)
 %%L2_helper: this function makes the calculation of KS p-values, skewness,
 %%and kurtosis a little more efficient for L2 (sub-mixed layer region that
 % is centred on the DCM). 
@@ -6,7 +6,7 @@ function [ax,X_out,pSubml,bA,ks,obs,sk,ku,rV,p,pV,ad,pr,vuongRes,cSubml,pB] = L2
 % tmp: the .txt datafile with five columns of data (ID, time, time in
 % hours, pressure, and variable concentration). Only the ID, pressure, and
 % concentration are used.
-% maxMld: the maximum mixed layer depth per cruise. Only values shallower
+% pMaxMld: the maximum mixed layer depth per cruise. Only values shallower
 % than this will be considered.
 % dcm: pressure of deep chlorophyll maximum (by cruise)
 % OUTPUTS
@@ -47,6 +47,9 @@ if nargin < 9
     season = 0;
     % 0 = no seasonal analysis, 1 = winter, 2 = spring, 3 = summer,
     % 4 = autumn
+end
+if nargin < 10
+    suppressFig = false;
 end
 
 id = num2str(tmp.data(:,1));
@@ -126,7 +129,55 @@ end
 %%% end seasonal analysis
 
 % 2. Extract data beneath ML
-[idSubml,pSubml,cSubml] = extractSMLC(id,p,c,maxMld);
+% [idSubml,pSubml,cSubml] = extractSMLC(id,p,c,pMaxMld);
+% Exclude data with no measurements (-9 here => NaN)
+c(c==-9) = nan;
+id = id(~isnan(c),:);
+p = p(~isnan(c));
+X1 = c(~isnan(c));
+
+% Cruise number 'crn'
+crn = str2num(id(:,1:3));
+
+% Stop evaluating after crn = 329
+for i = 1:length(crn)
+    if crn(i) == 330
+        stop = i;
+        break
+    elseif crn(i) > 330
+        stop = i;
+        break
+    else
+        stop = length(p) + 1;
+    end
+end
+
+% Extract measurements below pMaxMld
+L = stop-1; % No. of casts with chl measurements in cruise 1 - 329
+tmpP_subML = nan(L,1);
+tmpCRN_subML = nan(L,1);
+tmpX_subML = nan(L,1);
+botID = [];
+
+% To find the measurements taken beneath pMaxMld, we populate the arrays
+% just defined for cases where p > pMld...
+for i = 1:L
+    tmpMld = pMaxMld(crn(i));
+    if p(i) > tmpMld
+        tmpP_subML(i) = p(i);
+        tmpCRN_subML(i) = crn(i);
+        tmpX_subML(i) = X1(i);
+        tmpStr = id(i,:);
+        botID = [botID;tmpStr];
+    end
+end
+
+% ...and remove nan values (which represent measurements above pMaxMld)
+pSubml = tmpP_subML(~isnan(tmpP_subML));
+cSubml = tmpX_subML(~isnan(tmpX_subML));
+idSubml = botID;
+
+
 
 % 3. Calculate KS p-value, skewness, kurtosis
 % ..., centre around DCM (?)
@@ -171,8 +222,11 @@ limits = yLimits;
 obsId = [yLimitsObs(1) yLimitsObs(2)];
 
 % 4. Plot results
-ax = figure;
-[a,b] = plotKs2(pr,ks,obs,sk,ku,limits,threshold,vuongRes,obsId,pV,hypTest,ad,testSel,logAxis);
-
+if suppressFig == true
+    ax = nan;
+else
+    ax = figure;
+    [a,b] = plotKs2(pr,ks,obs,sk,ku,limits,threshold,vuongRes,obsId,pV,hypTest,ad,testSel,logAxis);
+end
 % disp(vuongRes);
 end

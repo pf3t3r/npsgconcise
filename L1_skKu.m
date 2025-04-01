@@ -1,4 +1,5 @@
-% Skewness-kurtosis analysis for L1 bottle data.
+% Skewness-kurtosis analysis of the mixed layer (L1) at Station ALOHA for chl-a, other pigments, and BGC variables.
+% We import the data, process it, and calculate the skewness and kurtosis.
 
 % This script duplicates a lot of L1_bot right now. Must clean this up.
 
@@ -6,6 +7,18 @@ clear; clc; close all;
 addpath("baroneRoutines\"); addpath("func\");
 set(groot, "defaultFigureUnits", "centimeters", "defaultFigurePosition", [3 3 10 15]);
 
+
+%% Variables
+% Set these parameters each time the script is run.
+
+season = 0;     % if zero, run default analysis. otherwise run seasonal
+                % analysis (1 = winter, 2 = spring, 3 = summer, 4 =
+                % autumn)
+threshold = 30; % default threshold for statistical tests
+
+%% Rest of code.
+
+%% Import MLD.
 ctdData = importdata("datafiles\ctd_iso_ALL.mat").ctd;
 maxMld = nan(329,1);
 for i = 1:329
@@ -17,89 +30,218 @@ end
 clear ctdData i;
 save mldVals.mat maxMld;
 
+%% Import Data
 tmp = importdata("data/L1/hplcChla_88-21_150.txt");
 pIn = tmp.data(:,4);
 cIn = tmp.data(:,5);
 idIn = tmp.data(:,1);
 
-% %%% seasonal analysis
-% if season ~= 0
-%     botidIn = tmp.data(:,2);
-%     n = length(pIn);
-%     botidIn(botidIn==-9) = nan;
-%     botId2 = num2str(botidIn);
-%     botMth = nan(n,1);
-%     for i = 1:n
-%         tmpX = str2num(botId2(i,1:end-4));
-%         if ~isnan(tmpX)
-%             botMth(i) = tmpX;
-%         end
-%     end
-%     winter = nan(n,1); spring = nan(n,1); summer = nan(n,1); autumn = nan(n,1);
-%     for i = 1:n
-%         tmpY = botMth(i);
-%         if (tmpY == 12) || (tmpY == 1) || (tmpY == 2)
-%             winter(i) = 1;
-%         end
-%         if (tmpY == 3) || (tmpY == 4) || (tmpY == 5)
-%             spring(i) = 1;
-%         end
-%         if (tmpY == 6) || (tmpY == 7) || (tmpY == 8)
-%             summer(i) = 1;
-%         end
-%         if (tmpY == 9) || (tmpY == 10) || (tmpY == 11)
-%             autumn(i) = 1;
-%         end
-%     end
-% 
-%     winIds = []; sprIds = []; sumIds = []; autIds = []; 
-%     for i = 1:n
-%         if winter(i) == 1
-%             winIds = [winIds i];
-%         end
-%         if spring(i) == 1
-%             sprIds = [sprIds i];
-%         end
-%         if summer(i) == 1
-%             sumIds = [sumIds i];
-%         end
-%         if autumn(i) == 1
-%             autIds = [autIds i];
-%         end
-%     end
-% 
-%     if season == 1
-%         cIn = cIn(winIds);
-%         pIn = pIn(winIds);
-%         idIn = idIn(winIds);
-%         %nSea = length(winIds);
-%     elseif season == 2
-%         cIn = cIn(sprIds);
-%         pIn = pIn(sprIds);
-%         idIn = idIn(sprIds);
-%         %nSea = length(sprIds);
-%     elseif season == 3
-%         cIn = cIn(sumIds);
-%         pIn = pIn(sumIds);
-%         idIn = idIn(sumIds);
-%         %nSea = length(sumIds);
-%     elseif season == 4
-%         cIn = cIn(autIds);
-%         pIn = pIn(autIds);
-%         idIn = idIn(autIds);
-%         %nSea = length(autIds);
-%     end
-% end
-% %%% end seasonal analysis
+%% seasonal analysis code
+if season ~= 0
+    botidIn = tmp.data(:,2);
+    n = length(pIn);
+    botidIn(botidIn==-9) = nan;
+    botId2 = num2str(botidIn);
+    botMth = nan(n,1);
+    for i = 1:n
+        tmpX = str2num(botId2(i,1:end-4));
+        if ~isnan(tmpX)
+            botMth(i) = tmpX;
+        end
+    end
+    winter = nan(n,1); spring = nan(n,1); summer = nan(n,1); autumn = nan(n,1);
+    for i = 1:n
+        tmpY = botMth(i);
+        if (tmpY == 12) || (tmpY == 1) || (tmpY == 2)
+            winter(i) = 1;
+        end
+        if (tmpY == 3) || (tmpY == 4) || (tmpY == 5)
+            spring(i) = 1;
+        end
+        if (tmpY == 6) || (tmpY == 7) || (tmpY == 8)
+            summer(i) = 1;
+        end
+        if (tmpY == 9) || (tmpY == 10) || (tmpY == 11)
+            autumn(i) = 1;
+        end
+    end
 
+    winIds = []; sprIds = []; sumIds = []; autIds = []; 
+    for i = 1:n
+        if winter(i) == 1
+            winIds = [winIds i];
+        end
+        if spring(i) == 1
+            sprIds = [sprIds i];
+        end
+        if summer(i) == 1
+            sumIds = [sumIds i];
+        end
+        if autumn(i) == 1
+            autIds = [autIds i];
+        end
+    end
+
+    if season == 1
+        cIn = cIn(winIds);
+        pIn = pIn(winIds);
+        idIn = idIn(winIds);
+        %nSea = length(winIds);
+    elseif season == 2
+        cIn = cIn(sprIds);
+        pIn = pIn(sprIds);
+        idIn = idIn(sprIds);
+        %nSea = length(sprIds);
+    elseif season == 3
+        cIn = cIn(sumIds);
+        pIn = pIn(sumIds);
+        idIn = idIn(sumIds);
+        %nSea = length(sumIds);
+    elseif season == 4
+        cIn = cIn(autIds);
+        pIn = pIn(autIds);
+        idIn = idIn(autIds);
+        %nSea = length(autIds);
+    end
+end
+%%% end seasonal analysis
+
+%% Extract data in mixed layer.
 % 2. Extract data in ML
-[idOut,pOut,cOut] = extractMldVals(idIn,pIn,cIn,maxMld);
+% [idOut,pOut,cOut] = extractMldVals(idIn,pIn,cIn,maxMld);
+% Extract the cruise number 'crn'.
+tmp = num2str(idIn);
+crn = str2num(tmp(:,1:3)); clear tmp;
 
-% 3. Bin data
-[~,pOutB,cOutB,~,~] = cleanAndBin(pOut,cOut,idOut');
+L = length(pIn);    % Length of dataset
 
-% 4. Calculate KS p-value, skewness, kurtosis, Vuong Parameters
-[ks,obs,p,sk,ku,rV,pV,ad] = ksOfBinnedCon(cOutB,pOutB,10,30);
+% Initialise ...
+tmpP = nan(1,L);
+tmpCrn = nan(1,L);
+tmpX = nan(1,L);
+tmpId = nan(1,L);
+
+% Stop at cruise number 329. This was in order to match the latest data
+% available for CTD fluorometry but I could consider updating this.
+for i = 1:L
+    if crn(i) == 330
+        stop = i;
+        break
+    elseif crn(i) > 330
+        stop = i;
+        break
+    else
+        stop = L+1;
+    end
+end
+
+% Save values at pressures above (i.e. shallower than) the mixed layer depth
+for i = 1:stop-1
+    tmp = maxMld(crn(i));
+    if pIn(i) < tmp
+        tmpP(i) = pIn(i);
+        tmpCrn(i) = crn(i);
+        tmpX(i) = cIn(i);
+        tmpId(i) = idIn(i);
+    end
+end
+
+% Remove NaNs from new arrays of values in mixed layer.
+pOut = tmpP(~isnan(tmpP));
+crnOut = tmpCrn(~isnan(tmpCrn));
+cOut = tmpX(~isnan(tmpX));
+idOut = tmpId(~isnan(tmpId));
+
+%% Data: Quality Control and Bin.
+
+% Remove bottles that are too close to the surface (< 2.5 dbar)
+idRm = pOut > 2.5;
+pOut = pOut(idRm);
+cOut = cOut(idRm);
+botid = idOut(idRm)';
+
+% Remove bottles where concentration of X = 0
+idZero = cOut == 0;
+pOut = pOut(~idZero);
+cOut = cOut(~idZero);
+botid = botid(~idZero);
+
+% Save cruise number (CRN) of each bottle - needed below
+tmp = num2str(botid);
+crn = str2num(tmp(:,1:3)); clear tmp;
+
+% Remove bottles from cruises 330 on (b/c fluorescence analysis not done)
+for i = 1:length(pOut)
+    if crn(i) > 329
+        id329 = i - 1;
+        break;
+    else
+        id329 = length(pOut);
+    end
+end
+
+pOut = pOut(1:id329);
+cOut = cOut(1:id329);
+clear idRm idZero id329 i;
+
+pb10 = discretize(pOut,0:10:200);
+n10 = max(pb10);
+
+cOutB = cOut;
+pOutB = pb10;
+
+%% Calculate skewness and kurtosis.
+% Calculate the skewness and kurtosis of the cleaned data. NOTE that other
+% parameters related to A-D calculation are still present. These are to be
+% removed.
+
+obs = nan(20,1); n = 20; depth = 5:10:200; ad = nan(4,20);
+for i = 1:n
+    % find concentration X_i at binned pressure i
+    X_i = cOutB(pOutB==i);
+    % apply statistical tests to the data   
+    if length(X_i) > 3
+        gammaParams = mle(X_i,"distribution","Gamma");
+        pdG = makedist("Gamma",gammaParams(1),gammaParams(2));
+        [~,ks(:,i),~] = statsplot2(X_i,'noplot');
+        [~,ad(2,i)] = adtest(X_i,"Distribution","logn","Alpha",0.005);
+        [~,ad(1,i)] = adtest(X_i,"Distribution","norm","Alpha",0.005);
+        [~,ad(3,i)] = adtest(X_i,"Distribution","weibull");
+        [~,ad(4,i)] = adtest(X_i,Distribution=pdG,MCTol=0.05);
+        [rV(:,i),pV(:,i)] = bbvuong(X_i);
+        sk(i) = skewness(X_i);
+        ku(i) = kurtosis(X_i);
+    end
+    obs(i) = length(X_i);
+    clear X_i;
+end
+
+% Remove values that do not meet the threshold
+for i = 1:n
+    if obs(i) < threshold
+        ad(:,i) = nan;
+        ks(:,i) = nan;
+        sk(i) = nan;
+        ku(i) = nan;
+        rV(:,i) = nan;
+        pV(:,i) = nan;
+    end
+end
+
+% Remove these nan values
+tmp = [];
+for i = 1:n
+    if ~isnan(sum(ad(:,i)))
+        tmp = [tmp i];
+    end
+end
+p = depth(tmp);
+Sk = sk(tmp);
+Ku = ku(tmp);
+rV = rV(:,tmp);
+pV = pV(:,tmp);
+ks = ks(:,~all(isnan(ks)));
+ad = ad(:,~all(isnan(ad)));
 
 % 4.a. Intercomparison of results from Vuong's Test: easily see best
 % distribution at each depth.
@@ -379,131 +521,10 @@ for i = 1:length(sigTh)
     kuLogn(i) = exp(4*sigTh(i)^2) + 2*exp(3*sigTh(i)^2) + 3*exp(2*sigTh(i)^2) - 3;
 end
 
-% % Gamma family: generate theoretical skewness and kurtosis
-% % kTh = linspace(0.2,5000,10000);
-% kTh = linspace(0.04,3000,1500000);
-% for i = 1:length(kTh)
-%     skGam(i) = 2/sqrt(kTh(i));
-%     kuGam(i) = 6/kTh(i) + 3;
-% end
-
-% % Weibull family: generate theoretical skewness and kurtosis
-% % kWbl = linspace(0,5,10000);
-% kWbl = linspace(0.1,3.5,10000);
-% for i = 1:length(kWbl)
-%     skWbl(i) = ( gamma(1 + 3/kWbl(i)) - 3*gamma(1 + 1/kWbl(i))*gamma(1 + 2/kWbl(i)) + 2*(gamma(1 + 1/kWbl(i)))^3 ) ./ ...
-%         ( gamma(1 + 2/kWbl(i)) -  (gamma(1 + 1/kWbl(i)))^2 )^(3/2);
-%     kuWbl(i) = ( gamma(1 + 4/kWbl(i)) - 4*gamma(1 + 1/kWbl(i))*gamma(1 + 3/kWbl(i)) + 6*( (gamma(1 + 1/kWbl(i)) )^2)*gamma(1 + 2/kWbl(i)) - 3*( (gamma(1 + 1/kWbl(i)))^4 ) ) ./ ...
-%        ( gamma(1 + 2/kWbl(i)) - ( gamma(1 + 1/kWbl(i)) )^2 )^2;
-% end
-
 % Negative Distributions
 skLognN = -skLogn;
 kuLognN = kuLogn;
-% skGamN= -skGam;
-% kuGamN = kuGam;
-% skWblN = -skWbl;
-% kuWblN = kuWbl;
 
-% subplot(1,3,3)
-% barh(obs,'FaceColor','#d3d3d3');
-% hold on
-% xline(threshold);
-% hold off
-% set(gca,'YDir','reverse');
-% if fluoOveride
-%     ylim([obsLimA+1 obsLimB/2 + 1]);
-% else
-%     ylim([obsLimA obsLimB]);
-% end
-% % ylabel('Pressure [dbar]','FontSize',15);
-% % set(gca,"YTick",1:1:length(ytix),"YTickLabel",ytix);
-% if botCtd == "bot"
-%     yticks(0.5:1:19.5);
-%     yticklabels(0:10:200);
-% elseif botCtd == "ctd"
-%     yticks(1:5:55);
-%     yticklabels(0:10:150);
-% end
-% yticklabels({});
-% xlabel('No. of Observations',Interpreter='latex',FontSize=13);
-% 
-% subplot(1,3,[1 2])
-% xline(alphaHy,DisplayName='\alpha',LineWidth=1.5,Color="#808080");
-% hold on
-% if strcmp(hypTest,"ks")
-%     if testSel == 4
-%         plot(ks(1,:),p,'o-','Color','#a6cee3','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5);
-%         plot(ks(2,:),p,'+--','Color','#1f78b4','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
-%         plot(ks(3,:),p,'x-','Color','#b2df8a','DisplayName','Weibull','LineWidth',1.5,'MarkerSize',5);
-%         plot(ks(4,:),p,'.--','Color','#33a02c','DisplayName','Gamma','LineWidth',1.5,'MarkerSize',5);
-%     elseif testSel == 2
-%         plot(ks(1,:),p,'o-','Color','#c51b7d','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5);
-%         plot(ks(2,:),p,'+--','Color','#4d9221','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
-%     end
-%     xlabel('K-S $p$-value',Interpreter='latex',FontSize=13);
-% else
-%     if testSel == 4
-%         plot(ad(1,:),p,'o-','Color','#a6cee3','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5);
-%         plot(ad(2,:),p,'+--','Color','#1f78b4','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
-%         plot(ad(3,:),p,'x-','Color','#b2df8a','DisplayName','Weibull','LineWidth',1.5,'MarkerSize',5);
-%         plot(ad(4,:),p,'.--','Color','#33a02c','DisplayName','Gamma','LineWidth',1.5,'MarkerSize',5);
-%     elseif testSel == 2
-%         for i = 1:n
-%             if vuongRes(i) == 1 && ad(1,i) > alphaHy & pV(1,i) > alphaLlr
-%                 plot(ad(1,i),p(i),'square','Color','#c51b7d','MarkerSize',15,HandleVisibility='off');
-%             elseif vuongRes(i) == 1 && ad(1,i) > alphaHy & pV(1,i) < alphaLlr
-%                 plot(ad(1,i),p(i),'square','Color','#c51b7d','MarkerSize',15,'LineWidth',4,HandleVisibility='off');
-%             elseif vuongRes(i) == 2 && ad(2,i) > alphaHy & pV(1,i) > alphaLlr
-%                 plot(ad(2,i),p(i),'square','Color','#4d9221','MarkerSize',15,HandleVisibility='off');
-%             elseif vuongRes(i) == 2 && ad(2,i) > alphaHy & pV(1,i) < alphaLlr
-%                 plot(ad(2,i),p(i),'square','Color','#4d9221','MarkerSize',15,'LineWidth',4,HandleVisibility='off');
-%             end
-%         end
-%         plot(ad(1,:),p,'o-','Color','#c51b7d','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5);
-%         plot(ad(2,:),p,'+--','Color','#4d9221','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
-%     end
-%     xlabel('A-D $p$-value + Vuong Ratio',Interpreter='latex',FontSize=13);
-% end
-% hold off
-% if logAxis == true
-%     set(gca, 'XScale', 'log');
-%     xline(0.05,':',HandleVisibility='off',LineWidth=1);
-%     xline(0.1,':',HandleVisibility='off',LineWidth=1);
-% end
-% grid minor;
-% ylim(limits); xlim([0.6*alphaHy 1]); ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
-% set(gca,'YDir','reverse');
-% legend(Location="best",FontSize=11);
-% % yticklabels({});
-% % title('K-S p-values');
-
-% subplot(1,5,[3 4])
-% zzs = 0.05*ones(n,1);
-% for i = 1:n
-%     % DEFAULT
-%     text(zzs(i),p(i),annot(i),FontSize=11,Color=anClr(i),FontWeight=tmpEmph(i));
-% %     % Normal-Lognormal Comparison ONLY
-% %     if pV(1,i) > 0.05
-% %         text(zzs(i),p(i),annot(i),FontSize=8,Color=anClr(i),FontWeight="bold");
-% %     else 
-% %         text(zzs(i),p(i),annot(i),FontSize=8,Color=anClr(i));
-% %     end
-% end
-% % % For Normal-Lognormal Comparison ONLY
-% % hold on
-% % pV(1,obs<threshold) = nan;
-% % for i = 1:n
-% %     if pV(1,i) > 0.05
-% %         scatter(pV(1,i),p(i),[],"black");
-% %     end
-% % end
-% % hold off
-% grid minor;
-% ylim(limits); set(gca,'YDir','reverse');
-% yticklabels({});
-% xticklabels({' ' ,' '});
-% xlabel('Vuong LLR','FontSize',15);
 
 kurtLimB = 10; skewLimA = 0; skewLimB = 2.5;
 if max(ku) > 10 & min(sk) < 0
@@ -542,9 +563,9 @@ elseif testSel == 4
     scatter(0,21/5,'DisplayName','Logi.',Marker='.',LineWidth=1);
     scatter(1.1395,5.4,'DisplayName','LEV',Marker='x',LineWidth=1);
 end
-scatter(sk,ku,72,[0.8 0.8 0.8],HandleVisibility="off");
+scatter(Sk,Ku,72,[0.8 0.8 0.8],HandleVisibility="off");
 clr = 1:1:length(p);
-scatter(sk,ku,54,clr,"filled","o",HandleVisibility="off");
+scatter(Sk,Ku,54,clr,"filled","o",HandleVisibility="off");
 colormap(gca,cbrewer2("Greens"));
 cbar = colorbar;
 cbar.Direction = "reverse";
@@ -556,13 +577,13 @@ cbar.Label.Position = [0.7 1-0.35];
 cbar.Label.Rotation = 0;
 % hold on
 % add polynomial
-[skS,id] = sort(sk);
-kuS = ku(id);
-[p,S] = polyfit(skS,kuS,2);
-[f,delta] = polyval(p,skS,S);
-plot(skS,f,'r-',DisplayName="Fit");
-plot(skS,f+2*delta,'m--',DisplayName='95% Prediction Interval');
-plot(skS,f-2*delta,'m--',HandleVisibility='off');
+% [skS,id] = sort(sk);
+% kuS = ku(id);
+% [p,S] = polyfit(skS,kuS,2);
+% [f,delta] = polyval(p,skS,S);
+% plot(skS,f,'r-',DisplayName="Fit");
+% plot(skS,f+2*delta,'m--',DisplayName='95% Prediction Interval');
+% plot(skS,f-2*delta,'m--',HandleVisibility='off');
 hold off
 grid minor;
 ylim([1 kurtLimB]); xlim([skewLimA skewLimB]);

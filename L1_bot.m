@@ -10,10 +10,12 @@ set(groot, "defaultFigureUnits", "centimeters", "defaultFigurePosition", [3 3 15
 
 % Possible test cases.
 principle = true;               % Main analysis: A-D Test complete time series
-seasonal = false;               % Seasonal analysis: A-D test applied to 
+seasonal = true;               % Seasonal analysis: A-D test applied to 
                                 % four seasons
-fourdist = false;
-showHistograms = false;
+fourdist = true;               % Four distribution analysis: A-D test 
+                                % additionally applied to Weibull and
+                                % Gamma.
+showHistograms = true;         % Show histogram analysis (true/false).
 testSel = 2;                    % 2 = norm + logn (default), 
                                 % 4 = norm + logn + weib + gamm
 thresh = 30;                    % Threshold for A-D Test to be accepted
@@ -43,21 +45,30 @@ save mldVals.mat maxMld;
 %% Check histograms
 
 if showHistograms == true
-    tmp = importdata("data/L1/hplcChla_88-21_150.txt");
+
+    % Select dataset and bin for analysis
+    D = "data/L1/hplcChla_88-21_150.txt";
+    bin = 10;   % value here represents the midpoint of a bin,
+                % e.g. 10 = bin from 5-15 dbar, 20 = bin from 15-25 dbar
+    nameVar = "chl-$a$";
+
+    % Import data; extract data within mixed layer.
+    tmp = importdata(D);
+    [~,~,~,~,~,~,~,~,~,X_ML,p_ML] = L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes,0,true);
     
-    [~,~,~,~,~,~,~,~,~,chla_ML,p_ML] = L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes,0,true);
+    % Bin pressure
+    pB = round(p_ML,-1);   
     
-    pB = round(p_ML,-1);   % bin the pressure
-    
-    % Plot.
-    % For chla measured at pressures in range 5-15 dbar, use pB = 10
-    % For range 15-25 dbar, use pB = 20, etc.
+    % Plot 1.
     figure;
-    histogram(chla_ML(pB==10));
-    
-    % histfit variation
+    histogram(X_ML(pB==bin)); title(""+nameVar+": "+bin+" dbar",Interpreter="latex");
+    grid on
+
+    % Plot 2. Histfit.
     figure
-    histfit(chla_ML(pB==40),10,"lognormal");
+    histfit(X_ML(pB==bin),10,"lognormal"); title(""+nameVar+": "+bin+" dbar",Interpreter="latex");
+    grid on
+
 end
 
 %% Principal Analysis: A-D
@@ -90,7 +101,6 @@ end
 
 if seasonal == true
 
-    thresh = 30;
     set(groot, "defaultFigureUnits", "centimeters", "defaultFigurePosition", [3 3 10 15]);
 
     %%% WINTER
@@ -192,9 +202,10 @@ end
 
 %% A-D but with Four Distributions
 if fourdist == true
+    set(groot, "defaultFigureUnits", "centimeters", "defaultFigurePosition", [3 3 15 15]);
+
     % A-D
     tmpT = "-ad-4dist";
-    thresh = 30;
     
     % HPLC chl-a
     tmp = importdata("data/L1/hplcChla_88-21_150.txt");

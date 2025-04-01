@@ -1,4 +1,14 @@
-% omnibus script to recreate all Stn ALOHA figures with BATS chl-a data.
+% Script to rerun the statistical analysis developed for Station ALOHA on BATS chl-a data.
+% First, we visualise the depth- and time-series and mean profile of chl-a.
+% Then, we apply the statistical analysis to the three "zones":
+% i. L0: the upper 200 dbar,
+% ii. L1: the mixed layer,
+% iii. L2: the DCM layer.
+% For each zone, we check the histograms, then apply the Anderson-Darling
+% (A-D) test to determine the best-fitting distribution at each depth. In
+% case two distributions fit the data well, we use an additional test
+% (Vuong Log-Likelihood Ratio test, V-LLR) to determine which of the two is
+% best.
 
 clear;clc;close all;
 format longG;
@@ -13,7 +23,7 @@ showL0title = false;        % Leave as 'false' for paper figures.
 A = importdata("data\dcm_BATS.txt");
 dcmBats = A.data;
 
-%% Time-series (Hovmoeller plot). (Fig 1a)
+%% Depth- and time-series. (Fig 1a)
 
 % Import Data: ID, Time, Depth, Chl-a.
 D = importdata('data\L0\bats_pigments.txt').data;
@@ -175,7 +185,7 @@ ylim([1 18]); xlim([0 600]);
 ax = gca;
 ax.FontSize = 15;
 
-%% Histogram: L0.
+%% L0 Histogram.
 
 % figure;
 % histogram(chla(depth_B==5));
@@ -580,7 +590,7 @@ idOut = idOut(~idZero);
 pb10 = discretize(pOut,0:10:200);
 n10 = max(pb10);
 
-%% Histogram: L1.
+%% L1 Histogram.
 
 COut(COut<=0) =nan;
 figure;
@@ -1060,27 +1070,17 @@ plot(skLognN,kuLognN,'Color','#808080',LineStyle='-',LineWidth=1.3,HandleVisibil
 scatter(sk,ku,72,[0.8 0.8 0.8],HandleVisibility='off');
 clr = 1:1:length(pr);
 scatter(sk,ku,54,clr,"filled","o",HandleVisibility="off");
-% colormap(gca,flipud(colormap("hot")));
 colormap(gca,flipud(cbrewer2("PiYG")));
 cbar = colorbar;
 cbar.Direction = "reverse";
 cbar.Ticks = 1:1:length(pr);
-% cbar.TickLabels = pr(1):10:pr(end);
 cbar.TickLabels = pr;
 cbar.Label.String = "P [dbar]";
 cbar.Label.Position = [0.7 1-0.7];
 cbar.Label.Rotation = 0;
-% add polynomial
-% [skS,id] = sort(sk);
-% kuS = ku(id);
-% [p,S] = polyfit(skS,kuS,2);
-% [f,delta] = polyval(p,skS,S);
-% plot(skS,f,'r-',DisplayName="Fit");
-% plot(skS,f+2*delta,'m--',skS,f-2*delta,'m--');
 hold off
 grid minor;
 ylim([1 kurtLimB]); xlim([skewLimA skewLimB]);
 xlabel('Skewness',FontSize=13,Interpreter='latex'); 
 ylabel('Kurtosis',FontSize=13,Interpreter='latex');
 title('L2','Interpreter','latex','FontSize',13);
-% yticklabels({});

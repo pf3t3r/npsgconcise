@@ -1,8 +1,16 @@
 function [ax,ks,obs,pB,X,ad] = L0_helper(tmp,threshold,hypTest,logAxis,season,figSuppress)
 %L0_helper
 %INPUT: tmp = text-file with pressure, bottle concentration, and bottle ID;
-%OUTPUT: ks = K-S p-value, obs = no. of observations, 
-% SAVE and OUTPUT bottle ID: reminder!
+% threshold = threshold needed for test to be run (default for A-D = 30);
+% hypTest = choose hypothesis test ("ad" for A-D or "ks" for K-S);
+% logAxis = output x-axis of A-D test in log coordinates (true/false);
+% season = do seasonal analysis or not. 0 = no seasonal analysis, while 1-4
+% implies seasonal analysis (1 = winter, 2 = spring, 3 = summer, 4 =
+% winter);
+% figSuppress = suppress output of figure. 
+%OUTPUT: ax = needed to save figure, ks = K-S p-value, obs = no. of 
+% observations, pB = binned pressure, X = output (cleaned) bottle
+% concentration, ad = A-D p-value
 
 meanDcm = load("datafiles/timeSeriesMeanDcm.mat").timeSeriesMeanDcm;
 meanPrc = load("datafiles\timeSeriesPrctl.mat").timeSeriesPrctl;
@@ -192,8 +200,6 @@ if figSuppress == false
     end
     if logAxis == true
         set(gca, 'XScale', 'log');
-        %xline(0.05,':',HandleVisibility='off',LineWidth=1);
-        %xline(0.1,':',HandleVisibility='off',LineWidth=1);
     end
     ylim([0 200]); xlim([0.1*alphaHy 1]);
     set(gca,'YDir','reverse');

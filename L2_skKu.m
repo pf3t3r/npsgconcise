@@ -619,12 +619,12 @@ cbar.Label.String = "P [dbar]";
 cbar.Label.Position = [0.7 1-0.7];
 cbar.Label.Rotation = 0;
 % add polynomial
-[skS,id] = sort(sk2);
-kuS = ku2(id);
-[p,S] = polyfit(skS,kuS,2);
-[f,delta] = polyval(p,skS,S);
-plot(skS,f,'r-',DisplayName="Fit");
-plot(skS,f+2*delta,'m--',skS,f-2*delta,'m--');
+% [skS,id] = sort(sk2);
+% kuS = ku2(id);
+% [p,S] = polyfit(skS,kuS,2);
+% [f,delta] = polyval(p,skS,S);
+% plot(skS,f,'r-',DisplayName="Fit");
+% plot(skS,f+2*delta,'m--',skS,f-2*delta,'m--');
 hold off
 grid minor;
 ylim([1 kurtLimB]); xlim([skewLimA skewLimB]);
