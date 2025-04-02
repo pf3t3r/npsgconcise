@@ -1,27 +1,39 @@
-% Script to output L1 ctd results for the statistical analysis.
+% Statistical Analysis of the mixed layer (L1) at Station ALOHA for CTD
+% data.
+% We import the data and run a hypothesis test on it with the respective
+% null hypotheses of normal and lognormal. We primarily use the 
+% Anderson-Darling test since this is both more powerful than similar tests
+% such as Kolmogorov-Smirnov and more flexible than tests such as 
+% Shapiro-Wilks which did not easily allow for testing of other 
+% distributions.
 
 close all; clc; clear;
 addpath("baroneRoutines\"); addpath("func\"); addpath("output\");
 set(groot, "defaultFigureUnits", "centimeters", "defaultFigurePosition", [3 3 15 15]);
 
-% Test Cases
+% Options and Test Cases.
 principalAnalysisAd = true;     % main analysis with A-D test
-principleAnalysisKs = false;    % main analysis with K-S test
-seasonalAnalysis = false;       % seasonality of statistics
+seasonalAnalysisAd = false;     % seasonal analysis with A-D test
+principleAnalysisKs = false;    % as above, but with K-S test
+seasonalAnalysisKs = false;       % seasonality of statistics
 noOfDists = 2;
-adThresh = 30;                  % only for chl-a in A-D
+threshAd = 30;                  % only for chl-a in A-D
+threshKs = 50;
 logAxes = true;                 % output p-values as log values (true)
-if logAxes == true
-    lp = "log/";
-else
-    lp = "";
-end
 
-%% Load MaxMld and Chl-a (EpN) and CTD data
+%% Load Data: processed fluorometry and mixed layer depth.
 
-% F2 = 131:329
+% The fluorometry data imported here has been previously saved as 
+% cruise-means using only night-time casts to avoid the effect of
+% non-photochemical quenching.
+
+% Chloropigment fluorescence
+% It was previously determined that fluorometry results from the initial
+% years of Station ALOHA were different to those of later years. Therefore,
+% we only use the results from the second, newer fluorometer.
+F2 = [131 329];   
 epN = load("output\CTD\chla.mat").meanEpN;
-epN = epN(1:76,131:329);
+epN = epN(1:76,F2(1):F2(2));
 pIn = 0:2:150;
 maxMld = load("mldVals.mat").maxMld;
 
@@ -76,9 +88,10 @@ for i = 1:329
     meanO2(:,i) = mean(squeeze(O2(i,:,:)),2,"omitnan");
 end
 
-%% GSW Processing.
+%% Further Processing.
 % Convert temperature and practical salinity into conservative temperature
-% and absolute salinity, and then calculate potential density.
+% and absolute salinity, and then calculate potential density sigma0 and
+% stratification N2.
 
 stnALOHA_lon = -158;
 stnALOHA_lat = 22.75;
@@ -87,125 +100,70 @@ CT = gsw_CT_from_t(SA,meanT,pIn');
 sigma0 = gsw_sigma0(SA,CT);
 [N2,p_mid] = gsw_Nsquared(SA,CT,pIn',stnALOHA_lat);
 
-%% Show Derived Parameters
-
-% Potential Density Anomaly (wrt p=0) 'sigma0'
-figure;
-scatter(sigma0,pIn,5,"yellow");
-set(gca,"YDir","reverse");
-
-% Absolute Salinity SA
-figure;
-scatter(SA,pIn,4,"yellow");
-set(gca,"YDir","reverse");
+%% Visualise CT, SA, and sigma0.
 
 % Conservative Temperature CT
 figure;
-scatter(CT,pIn,4,"yellow");
-set(gca,"YDir","reverse");
+scatter(CT,pIn,4,[0.6 0.6 0.6]); title("Conservative Temperature",Interpreter="latex");
+xlabel("$\Theta$ [$^\circ$C]",Interpreter="latex"); ylabel("Pressure [dbar]");
+set(gca,"YDir","reverse"); grid on;
 
-%% Show vertical profiles
+% Absolute Salinity SA
+figure;
+scatter(SA,pIn,4,[0.6 0.6 0.6]); title("Absolute Salinity",Interpreter="latex");
+xlabel("S_A [g/kg]"); ylabel("Pressure [dbar]");
+set(gca,"YDir","reverse"); grid on;
 
-% figure
-% plot(meanT,pIn); set(gca,"YDir","reverse");
-% title("Temperature (C): 88-21");
-% 
-% figure
-% plot(meanSp,pIn); set(gca,"YDir","reverse");
-% title("Practical Salinity (g/kg): 88-21");
-% 
-% figure
-% plot(meanO2,pIn); set(gca,"YDir","reverse");
-% title("$O_2$ (mmol m$^{-3}$)",Interpreter="latex");
+% Potential Density Anomaly (wrt p=0) 'sigma0'
+figure;
+scatter(sigma0,pIn,5,[0.6 0.6 0.6]); title("Potential Density Anomaly",Interpreter="latex")
+xlabel("$\sigma_0$ [kg/m$^3$]",Interpreter="latex"); ylabel("Pressure [dbar]");
+set(gca,"YDir","reverse"); grid on;
 
-%% Principal Analysis
-if principleAnalysisKs == true
-    %  K-S
+% Stratification 'N^2'
+figure;
+scatter(N2,p_mid,5,[0.6 0.6 0.6]); title("Stratification",Interpreter="latex")
+xlabel("$N^2$ [cycles $s^{-1}$]",Interpreter="latex"); ylabel("Pressure [dbar]");
+set(gca,"YDir","reverse"); set(gca,'xscale','log'); grid on;
+
+%% Principal Analysis: A-D.
+if principalAnalysisAd == true
+
     tmpT = "";
     
     % CHL-A
-    ax = L1_ctdHelper(epN,pIn,maxMld,50,noOfDists);
-    sgtitle("fluorescence (01-21): L1");
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\chla.mat","p","ks","obs","Sk","Ku");
-    
-    % T
-    [ax,mldCon,rV,pV,ks,vuongRes] = L1_ctdHelper(meanT,pIn,maxMld,50,noOfDists);
-    sgtitle("CTD Temperature 88-21: L1");
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\t.mat","p","ks","obs","Sk","Ku");
-    
-    % SP
-    ax = L1_ctdHelper(meanSp,pIn,maxMld,50,noOfDists);
-    sgtitle("CTD S_P 88-21: L1");
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"sp" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\sp.mat","p","ks","obs","Sk","Ku");
-    
-    % O2
-    [ax,mldCon] = L1_ctdHelper(meanO2,pIn,maxMld,50,noOfDists);
-    sgtitle("CTD O2 88-21: L1");
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"o2" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\o2.mat","p","ks","obs","Sk","Ku");
-    
-end
-
-if principalAnalysisAd == true
-
-    % A-D
-    tmpT = "-ad";
-    
-    tmpx = "";
-    % CHL-A
-    ax = L1_ctdHelper(epN,pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("L1"+tmpx);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\chla.mat","p","ks","obs","Sk","Ku");
-    
-    % T
-    ax = L1_ctdHelper(meanT,pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("CTD Temperature 88-21: L1"+tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\t.mat","p","ks","obs","Sk","Ku");
+    ax = L1_ctdHelper(epN,pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("chloropigment fluorescence");
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png"); clear ax;
+    % save("output\L1_ctd\chla.mat","p","ks","obs","Sk","Ku");
 
     % CT
-    ax = L1_ctdHelper(CT,pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("L1");
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"CT" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\t.mat","p","ks","obs","Sk","Ku");
+    ax = L1_ctdHelper(CT,pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("\Theta");
+    exportgraphics(ax,"output/figures/L1_ctd/CT" + tmpT + ".png"); clear ax;
     
-    % SP
-    [ax,mldCon,rV,pV,ad,V] = L1_ctdHelper(meanSp,pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("CTD S_P 88-21: L1"+tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"sp" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\sp.mat","p","ks","obs","Sk","Ku");
-
     % SA
-    ax = L1_ctdHelper(SA,pIn,maxMld,adThresh,noOfDists,"ad");
+    ax = L1_ctdHelper(SA,pIn,maxMld,threshAd,noOfDists,"ad");
     sgtitle("CTD S_A 88-21: L1"+tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"sa" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\sp.mat","p","ks","obs","Sk","Ku");
-
+    exportgraphics(ax,"output/figures/L1_ctd/sa" + tmpT + ".png"); clear ax;
+   
     % sigma0
-    ax = L1_ctdHelper(sigma0,pIn,maxMld,adThresh,noOfDists,"ad");
+    ax = L1_ctdHelper(sigma0,pIn,maxMld,threshAd,noOfDists,"ad");
     sgtitle("CTD \sigma_0 88-21: L1"+tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"sigma0" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\sp.mat","p","ks","obs","Sk","Ku");
-
+    exportgraphics(ax,"output/figures/L1_ctd/sigma0" + tmpT + ".png"); clear ax;
+   
     % N^2 Stratification
-    ax = L1_ctdHelper(N2,p_mid(:,1),maxMld,adThresh,noOfDists,"ad");
+    ax = L1_ctdHelper(N2,p_mid(:,1),maxMld,threshAd,noOfDists,"ad");
     sgtitle("N^2 88-21: L1"+tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"n_squared" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\sp.mat","p","ks","obs","Sk","Ku");
-    
-    
+    exportgraphics(ax,"output/figures/L1_ctd/n_squared" + tmpT + ".png"); clear ax;
+        
     % O2
-    ax = L1_ctdHelper(meanO2,pIn,maxMld,adThresh,noOfDists,"ad");
+    ax = L1_ctdHelper(meanO2,pIn,maxMld,threshAd,noOfDists,"ad");
     sgtitle("CTD O2 88-21: L1"+tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"o2" + tmpT + ".png"); clear ax;
-    % save("output\L1\ctd\o2.mat","p","ks","obs","Sk","Ku");
+    exportgraphics(ax,"output/figures/L1_ctd/o2" + tmpT + ".png"); clear ax;
 end
 
-%% Set-up seasonal test.
+%% Seasonal Analysis: A-D.
 
 % find "average" month of a cruise, then give an ID to that cruise saying
 % which season it is (Spring, Summer, Autumn, or Winter).
@@ -266,225 +224,224 @@ dcmSp = mean(dcm(sprIds),"omitnan");
 dcmSu = mean(dcm(sumIds),"omitnan");
 dcmA = mean(dcm(autIds),"omitnan");
 
-%% Test Seasonal Analysis
-
 % Naming scheme
 % -01 = winter, -02 = spring, -03 = summer, -04 = autumn
 
-if seasonalAnalysis == true
+if seasonalAnalysisAd == true
 
-    % K-S
-    % winter
-    tmpT = "-01";
-
-    chla = load("output\CTD\chla.mat").meanEpN(1:101,winIds(36:end));
-    ax = L1_ctdHelper(chla,pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("chl-a " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png");
-
-    % T
-    ax = L1_ctdHelper(meanT(:,winIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("T " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png");
-    
-    % Sp
-    ax = L1_ctdHelper(meanSp(:,winIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("$S_p$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "Sp" + tmpT + ".png");
-    
-    % O2
-    ax = L1_ctdHelper(meanO2(:,winIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("$O_2$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "O2" + tmpT + ".png");
-
-    % spring
-    tmpT = "-02";
-
-    chla = load("output\CTD\chla.mat").meanEpN(1:101,sprIds(33:end));
-    ax = L1_ctdHelper(chla,pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("chl-a " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png");
-
-    % T
-    ax = L1_ctdHelper(meanT(:,sprIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("T " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png");
-    
-    % Sp
-    ax = L1_ctdHelper(meanSp(:,sprIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("$S_p$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "Sp" + tmpT + ".png");
-    
-    % O2
-    ax = L1_ctdHelper(meanO2(:,sprIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("$O_2$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "O2" + tmpT + ".png");
-
-    % summer
-    tmpT = "-03";
-
-    chla = load("output\CTD\chla.mat").meanEpN(1:101,sumIds(33:end));
-    ax = L1_ctdHelper(chla,pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("chl-a " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png");
-
-    % T
-    ax = L1_ctdHelper(meanT(:,sumIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("T " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png");
-    
-    % Sp
-    ax = L1_ctdHelper(meanSp(:,sumIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("$S_p$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "Sp" + tmpT + ".png");
-    
-    % O2
-    ax = L1_ctdHelper(meanO2(:,sumIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("$O_2$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "O2" + tmpT + ".png");
-
-    % autumn
-    tmpT = "-04";
-
-    chla = load("output\CTD\chla.mat").meanEpN(1:101,sumIds(30:end));
-    ax = L1_ctdHelper(chla,pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("chl-a " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png");
-
-    % T
-    ax = L1_ctdHelper(meanT(:,autIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("T " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png");
-    
-    % Sp
-    ax = L1_ctdHelper(meanSp(:,autIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("$S_p$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "Sp" + tmpT + ".png");
-    
-    % O2
-    ax = L1_ctdHelper(meanO2(:,autIds),pIn,maxMld,50,noOfDists,"ks");
-    sgtitle("$O_2$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "O2" + tmpT + ".png");
-
-    % A-D
-    % winter
-    tmpT = "-ad-01";
+    % WINTER
+    tmpT = "-ad-01"; tmpX = "Winter";
 
     chla = load("output\CTD\chla.mat").meanEpN(1:101,winIds(36:end));
-    ax = L1_ctdHelper(chla,pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("chl-a " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png");
+    ax = L1_ctdHelper(chla,pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("chl-a " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png");
 
-    % T
-    ax = L1_ctdHelper(meanT(:,winIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("T " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png");
+    % CT
+    ax = L1_ctdHelper(CT(:,winIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$\Theta$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
     
-    % Sp
-    ax = L1_ctdHelper(meanSp(:,winIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("$S_p$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "Sp" + tmpT + ".png");
+    % SA
+    ax = L1_ctdHelper(SA(:,winIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$S_A$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "Sp" + tmpT + ".png");
     
     % O2
-    ax = L1_ctdHelper(meanO2(:,winIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("$O_2$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "O2" + tmpT + ".png");
+    ax = L1_ctdHelper(meanO2(:,winIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$O_2$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "O2" + tmpT + ".png");
 
-    % spring
-    tmpT = "-ad-02";
+    % SPRING
+    tmpT = "-ad-02"; tmpX = "Spring";
 
     chla = load("output\CTD\chla.mat").meanEpN(1:101,sprIds(33:end));
-    ax = L1_ctdHelper(chla,pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("chl-a " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png");
+    ax = L1_ctdHelper(chla,pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("chl-$a$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png");
 
-    % T
-    ax = L1_ctdHelper(meanT(:,sprIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("T " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png");
+    % CT
+    ax = L1_ctdHelper(CT(:,sprIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$\Theta$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
     
-    % Sp
-    ax = L1_ctdHelper(meanSp(:,sprIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("$S_p$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "Sp" + tmpT + ".png");
+    % SA
+    ax = L1_ctdHelper(SA(:,sprIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$S_A$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "Sp" + tmpT + ".png");
     
     % O2
-    ax = L1_ctdHelper(meanO2(:,sprIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("$O_2$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "O2" + tmpT + ".png");
+    ax = L1_ctdHelper(meanO2(:,sprIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$O_2$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "O2" + tmpT + ".png");
 
-    % summer
-    tmpT = "-ad-03";
+    % SUMMER
+    tmpT = "-ad-03"; tmpX = "Summer";
 
     chla = load("output\CTD\chla.mat").meanEpN(1:101,sumIds(33:end));
-    ax = L1_ctdHelper(chla,pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("chl-a " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png");
+    ax = L1_ctdHelper(chla,pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("chl-$a$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png");
 
-    % T
-    ax = L1_ctdHelper(meanT(:,sumIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("T " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png");
+    % CT
+    ax = L1_ctdHelper(CT(:,sumIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$\Theta$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
     
-    % Sp
-    ax = L1_ctdHelper(meanSp(:,sumIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("$S_p$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "Sp" + tmpT + ".png");
+    % SA
+    ax = L1_ctdHelper(SA(:,sumIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$S_A$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "Sp" + tmpT + ".png");
     
     % O2
-    ax = L1_ctdHelper(meanO2(:,sumIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("$O_2$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "O2" + tmpT + ".png");
+    ax = L1_ctdHelper(meanO2(:,sumIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$O_2$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "O2" + tmpT + ".png");
 
-    % autumn
-    tmpT = "-ad-04";
+    % AUTUMN
+    tmpT = "-ad-04"; tmpX = "Autumn";
 
     chla = load("output\CTD\chla.mat").meanEpN(1:101,sumIds(30:end));
-    ax = L1_ctdHelper(chla,pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("chl-a " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"chla" + tmpT + ".png");
+    ax = L1_ctdHelper(chla,pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("chl-$a$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png");
 
-    % T
-    ax = L1_ctdHelper(meanT(:,autIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("T " + tmpT);
-    exportgraphics(ax,"figures/L1/ctd/"+lp+"T" + tmpT + ".png");
+    % CT
+    ax = L1_ctdHelper(CT(:,autIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$\Theta$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
     
     % Sp
-    ax = L1_ctdHelper(meanSp(:,autIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("$S_p$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "Sp" + tmpT + ".png");
+    ax = L1_ctdHelper(SA(:,autIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$S_p$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "Sp" + tmpT + ".png");
     
     % O2
-    ax = L1_ctdHelper(meanO2(:,autIds),pIn,maxMld,adThresh,noOfDists,"ad");
-    sgtitle("$O_2$ " + tmpT,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/ctd/" + lp + "O2" + tmpT + ".png");
+    ax = L1_ctdHelper(meanO2(:,autIds),pIn,maxMld,threshAd,noOfDists,"ad");
+    sgtitle("$O_2$ " + tmpX,"Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "O2" + tmpT + ".png");
 end
 
+%% Extra Analysis with Kolmogorov-Smirnov (K-S).
+if principleAnalysisKs == true
 
-%% Unused.
-% % Load Nitrate (NO3-)
-% 
-% NO3 = nan(329,76,31);
-% meanNO3 = nan(76,329);
-% 
-% for i = cRm
-%     tmp = ctdData(i).n(1:76,:);
-%     if length(tmp) > 3
-%         for j = 1:length(tmp(1,:))
-%             NO3(i,:,j) = tmp(:,j);
-%         end
-%     end
-% end
-% 
-% for i = 1:329
-%     meanNO3(:,i) = mean(squeeze(NO3(i,:,:)),2,"omitnan");
-% end
-% %
-% figure
-% plot(meanNO3,pIn); set(gca,"YDir","reverse");
-% title("$NO_3^{-}$ (mmol m$^{-3}$)",Interpreter="latex");
-% %% NO3-
-% [ax,p,ks,obs,Sk,Ku,rV,pV] = L1_ctdHelper(meanNO3,pIn,maxMld);
-% sgtitle("CTD NO3- 88-21: L1");
-% exportgraphics(ax,"figures/L1/ctd/notUsed/no3" + tmpT + ".png"); clear ax;
-% % save("output\L1\ctd\no3.mat","p","ks","obs","Sk","Ku");
+    %  K-S
+    tmpT = "-ks";
+    
+    % CHL-A
+    ax = L1_ctdHelper(epN,pIn,maxMld,threshKs,noOfDists);
+    sgtitle("Fluorescence 01-21: L1","Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png");
+    
+    % Ct
+    ax = L1_ctdHelper(CT,pIn,maxMld,threshKs,noOfDists);
+    sgtitle("$\Theta$ 88-21: L1","Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
+    
+    % SA
+    ax = L1_ctdHelper(SA,pIn,maxMld,threshKs,noOfDists);
+    sgtitle("S_A 88-21: L1","Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
+    
+    % O2
+    ax = L1_ctdHelper(meanO2,pIn,maxMld,threshKs,noOfDists);
+    sgtitle("CTD O2 88-21: L1","Interpreter","latex");
+    exportgraphics(ax,"output/figures/L1_ctd/o2" + tmpT + ".png");
+    
+end
+
+% Seasonal Analysis: K-S.
+if seasonalAnalysisKs == true
+
+    % WINTER
+    tmpT = "-ks-01";
+
+    chla = load("output\CTD\chla.mat").meanEpN(1:101,winIds(36:end));
+    ax = L1_ctdHelper(chla,pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("chl-a " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png");
+
+    % CT
+    ax = L1_ctdHelper(CT(:,winIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("\Theta " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
+    
+    % SA
+    ax = L1_ctdHelper(SA(:,winIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("S_A " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "Sp" + tmpT + ".png");
+    
+    % O2
+    ax = L1_ctdHelper(meanO2(:,winIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("$O_2$ " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "O2" + tmpT + ".png");
+
+    % SPRING
+    tmpT = "-ks-02";
+
+    chla = load("output\CTD\chla.mat").meanEpN(1:101,sprIds(33:end));
+    ax = L1_ctdHelper(chla,pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("chl-a " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png");
+
+    % CT
+    ax = L1_ctdHelper(CT(:,sprIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("\Theta " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
+    
+    % SA
+    ax = L1_ctdHelper(SA(:,sprIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("S_A " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "Sp" + tmpT + ".png");
+    
+    % O2
+    ax = L1_ctdHelper(meanO2(:,sprIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("$O_2$ " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "O2" + tmpT + ".png");
+
+    % SUMMER
+    tmpT = "-ks-03";
+
+    chla = load("output\CTD\chla.mat").meanEpN(1:101,sumIds(33:end));
+    ax = L1_ctdHelper(chla,pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("chl-a " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png");
+
+    % CT
+    ax = L1_ctdHelper(CT(:,sumIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("\Theta " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
+    
+    % SA
+    ax = L1_ctdHelper(SA(:,sumIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("S_A " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "Sp" + tmpT + ".png");
+    
+    % O2
+    ax = L1_ctdHelper(meanO2(:,sumIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("$O_2$ " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "O2" + tmpT + ".png");
+
+    % AUTUMN
+    tmpT = "-ks-04";
+
+    chla = load("output\CTD\chla.mat").meanEpN(1:101,sumIds(30:end));
+    ax = L1_ctdHelper(chla,pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("chl-a " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd/chla" + tmpT + ".png");
+
+    % CT
+    ax = L1_ctdHelper(CT(:,autIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("\Theta " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd/T" + tmpT + ".png");
+    
+    % SA
+    ax = L1_ctdHelper(SA(:,autIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("S_{A} " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "Sp" + tmpT + ".png");
+    
+    % O2
+    ax = L1_ctdHelper(meanO2(:,autIds),pIn,maxMld,threshKs,noOfDists,"ks");
+    sgtitle("O_2 " + tmpX);
+    exportgraphics(ax,"output/figures/L1_ctd" + lp + "O2" + tmpT + ".png");
+end
