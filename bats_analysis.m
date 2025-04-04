@@ -10,14 +10,18 @@
 % (Vuong Log-Likelihood Ratio test, V-LLR) to determine which of the two is
 % best.
 
-clear;clc;close all;
-format longG;
-addpath("func\"); addpath("baroneRoutines\");
+clear;clc;close all; format longG;
 
+% Options and Test Cases.
+threshold = 30;
+showTimeSeries = false;
+showL0 = true;
+showL1 = true;
+showL2 = true;
 showOtherTests = false;     % Evaluate data with Lilliefors and chi^2 tests.
                             % (in addition to Anderson-Darling)
-showL0title = false;        % Leave as 'false' for paper figures.
-
+showL0title = true;        % Leave as 'false' for paper figures.
+showDcmMldComp = false;     % show depth comparison of DCM and MLD
 %% Import DCM file for BATS
 % This was calculated manually on Excel for BATS cruises 1-405.
 A = importdata("data\dcm_BATS.txt");
@@ -71,7 +75,6 @@ clear YY MM DD hh mm ss;
 % Bin by depth.
 edges = 0:10:200;
 depth_B = discretize(depth,edges);
-% depth_B(isnan(depth_B)) = 99;
 clear edges;
 
 % Extract cruise type 'cType' and cruise number 'CRN'.
@@ -120,7 +123,6 @@ for i = 2:397
     depthUnbinned(i,1:(id_nc(i+1)-id_nc(i))) = depth(id_nc(i):id_nc(i+1)-1);
     tgrid(i,1:(id_nc(i+1)-id_nc(i))) = t(id_nc(i):id_nc(i+1)-1);
     chlagrid(i,1:(id_nc(i+1)-id_nc(i))) = chla(id_nc(i):id_nc(i+1)-1);
-    %pgrid(3,1:(newCruiseId(4)-newCruiseId(3))) = pB(newCruiseId(3):newCruiseId(4)-1);
 end
 
 % Final cruise (#398).
@@ -131,149 +133,144 @@ chlagrid(398,1:(length(chla)+1-id_nc(398))) = chla(id_nc(398):length(chla));
 
 tgridDatenum = datenum(tgrid);      % Convert time vector to datenum format (for plotting).
 
-% Figure 1a. chl-a(p,t).
-figure;
-contourf(tgridDatenum,dgrid,chlagrid,linspace(0,500,10),'LineColor','auto');
-set(gca,"YDir","reverse");
-datetickzoom('x','yyyy','keeplimits');
-colormap(flipud(cbrewer2("GnBu")));
-c = colorbar;
-c.Label.String = 'chl-a [ng/l]';
-c.FontSize = 13;
-ylim([1 18]);
-zlim([0 500]);
-yticks(1:1:18);
-% yticklabels({});
-yticklabels(5:10:175);
-ylabel("P [dbar]","FontSize",13); xlabel("Time",FontSize=13);
-ax = gca;
-ax.FontSize = 15;
-
-%% Mean profile of time-series. (Fig. 1b)
-
-% Calculate the mean chl-a at each depth bin as well as the 5th and 95th
-% percentile values.
-chlaProfile = nan(1,20); f5 = nan(1,20); f95 = nan(1,20);
-for i = 1:20
-    chlaProfile(i) = mean(chlagrid(dgrid==i),"omitnan");
-    f5(i) = prctile(chlagrid(dgrid==i),5);
-    f95(i) = prctile(chlagrid(dgrid==i),95);
+if showTimeSeries == true
+    % Figure 1a. chl-a(p,t).
+    figure;
+    contourf(tgridDatenum,dgrid,chlagrid,linspace(0,500,10),'LineColor','auto');
+    set(gca,"YDir","reverse");
+    datetickzoom('x','yyyy','keeplimits');
+    colormap(flipud(cbrewer2("GnBu")));
+    c = colorbar;
+    c.Label.String = 'chl-a [ng/l]';
+    c.FontSize = 13;
+    ylim([1 18]);
+    zlim([0 500]);
+    yticks(1:1:18);
+    yticklabels(5:10:175);
+    ylabel("P [dbar]","FontSize",13); xlabel("Time",FontSize=13);
+    ax = gca;
+    ax.FontSize = 15;
+    
+    %% Mean profile of time-series. (Fig. 1b)
+    
+    % Calculate the mean chl-a at each depth bin as well as the 5th and 95th
+    % percentile values.
+    chlaProfile = nan(1,20); f5 = nan(1,20); f95 = nan(1,20);
+    for i = 1:20
+        chlaProfile(i) = mean(chlagrid(dgrid==i),"omitnan");
+        f5(i) = prctile(chlagrid(dgrid==i),5);
+        f95(i) = prctile(chlagrid(dgrid==i),95);
+    end
+    
+    % Toggle show y-label and title (for the paper we don't need either)
+    displayYLabelAndTitle = false;
+    
+    % Figure 1b. Mean chl-a profile.
+    ax = figure;
+    plot(chlagrid(:,1),dgrid(:,1),'.',Color=[0.8 0.8 0.8],DisplayName="raw data");
+    hold on
+    plot(chlagrid(:,2:20),dgrid(:,2:20),'.',Color=[0.8 0.8 0.8],HandleVisibility='off');
+    plot(chlaProfile,1:1:20,'-',"Color",[0 0 0],DisplayName="mean");
+    plot(f5,1:1:20,'-',"Color",[0.5 0.5 0.5],DisplayName="5%");
+    plot(f95,1:1:20,'-',"Color",[0.5 0.5 0.5],DisplayName="95%");
+    hold off
+    set(gca,"YDir","reverse");
+    legend();
+    xlabel("chl-$a$ [ng/L]",Interpreter="latex");
+    if displayYLabelAndTitle == true
+        title("L0 Chl-$a$ 1988-2022",Interpreter="latex");
+        ylabel("P [dbar]",Interpreter="latex");
+        yticklabels({});
+    end
+    yticks(1:1:18); yticklabels(5:10:175);
+    ylim([1 18]); xlim([0 600]);
+    ax = gca;
+    ax.FontSize = 15;
 end
 
-% Toggle show y-label and title (for the paper we don't need either)
-displayYLabelAndTitle = false;
 
-% Figure 1b. Mean chl-a profile.
-ax = figure;
-plot(chlagrid(:,1),dgrid(:,1),'.',Color=[0.8 0.8 0.8],DisplayName="raw data");
-hold on
-plot(chlagrid(:,2:20),dgrid(:,2:20),'.',Color=[0.8 0.8 0.8],HandleVisibility='off');
-plot(chlaProfile,1:1:20,'-',"Color",[0 0 0],DisplayName="mean");
-plot(f5,1:1:20,'-',"Color",[0.5 0.5 0.5],DisplayName="5%");
-plot(f95,1:1:20,'-',"Color",[0.5 0.5 0.5],DisplayName="95%");
-hold off
-set(gca,"YDir","reverse");
-legend();
-xlabel("chl-$a$ [ng/L]",Interpreter="latex");
-if displayYLabelAndTitle == true
-    title("L0 Chl-$a$ 1988-2022",Interpreter="latex");
-    ylabel("P [dbar]",Interpreter="latex");
-    yticklabels({});
-end
-yticks(1:1:18); yticklabels(5:10:175);
-ylim([1 18]); xlim([0 600]);
-ax = gca;
-ax.FontSize = 15;
-
-%% L0 Histogram.
-
-% figure;
-% histogram(chla(depth_B==5));
-
-% histfit variation
-chla((chla==0)) = nan;
-figure
-histfit(chla(depth_B==2),10,"lognormal");
-
-%% A-D test: L0. (Fig. 2) [complete time series]
-
-% Find the depth of the Chlorophyll Maximum (CM). NOTE that in the case of
-% BATS that this is not necessarily a deep maximum. We will separate the
-% deep maxima at a later stage.
-
-% Calculate the mean depth of the Chlorophyll Maximum (CM) as well as the
-% 5th and 9th percentile interval values.
-meanCM = mean(dcmBats(:,2),"omitnan");
-CM_5pct = prctile(dcmBats(:,2),5);
-CM_95pct = prctile(dcmBats(:,2),95);
-
-% Use the Anderson-Darling (A-D) test to evaluate whether the data is
-% distributed normally or lognormally. The hypothesis test result 'h' will
-% return as h = 1 if the null hypothesis is rejected or h = 0 if there is a
-% failure to reject the null hypothesis.
-hN = nan(20,1); pN = nan(20,1); hL = nan(20,1); pL = nan(20,1);
-obs = nan(20,1);
-for i = 1:20
-    tmp = chla(depth_B==i);
-    if length(tmp) > 30
-        obs(i) = length(tmp);
-        tmp(tmp==0) = nan;
-
-        [hN(i), pN(i)] = adtest(tmp,"Distribution","norm","Alpha",0.005);
-        [hL(i), pL(i)] = adtest(tmp,"Distribution","logn","Alpha",0.005);
-
-        if showOtherTests == true
-            pd0 = fitdist(tmp,'Normal');
-            pd = fitdist(tmp,'Lognormal');
-            [hN2(i), pN2(i)] = chi2gof(tmp,"CDF",pd0);
-            [hN3(i), pN3(i)] = lillietest(tmp,"Distribution","norm");
-            [hx1(i),px1(i)] = chi2gof(tmp,'CDF',pd);
-            [hx2(i),px2(i)] = lillietest(log(tmp),"Distr","norm");
+%% L0 Analysis.
+if showL0 == true
+    
+    % HISTOGRAM.
+    chla((chla==0)) = nan;
+    figure
+    histfit(chla(depth_B==2),10,"lognormal");
+    
+    % Calculate the mean depth of the Chlorophyll Maximum (CM) as well as the
+    % 5th and 9th percentile interval values.
+    meanCM = mean(dcmBats(:,2),"omitnan");
+    CM_5pct = prctile(dcmBats(:,2),5);
+    CM_95pct = prctile(dcmBats(:,2),95);
+    
+    % Use the Anderson-Darling (A-D) test to evaluate whether the data is
+    % distributed normally or lognormally. The hypothesis test result 'h' will
+    % return as h = 1 if the null hypothesis is rejected or h = 0 if there is a
+    % failure to reject the null hypothesis.
+    hN = nan(20,1); pN = nan(20,1); hL = nan(20,1); pL = nan(20,1);
+    obs = nan(20,1);
+    for i = 1:20
+        tmp = chla(depth_B==i);
+        if length(tmp) > 30
+            obs(i) = length(tmp);
+            tmp(tmp==0) = nan;
+    
+            [hN(i), pN(i)] = adtest(tmp,"Distribution","norm","Alpha",0.005);
+            [hL(i), pL(i)] = adtest(tmp,"Distribution","logn","Alpha",0.005);
+    
+            if showOtherTests == true
+                pd0 = fitdist(tmp,'Normal');
+                pd = fitdist(tmp,'Lognormal');
+                [hN2(i), pN2(i)] = chi2gof(tmp,"CDF",pd0);
+                [hN3(i), pN3(i)] = lillietest(tmp,"Distribution","norm");
+                [hx1(i),px1(i)] = chi2gof(tmp,'CDF',pd);
+                [hx2(i),px2(i)] = lillietest(log(tmp),"Distr","norm");
+            end
         end
     end
+    
+    % Plot Figure 2. chl-a. Is the data normal or lognormal?
+    figure;
+    if showL0title == true
+        sgtitle("chl-a (L0): " + "BATS "+num2str(YMD(1))+" - " + num2str(YMD(end))+"");
+    end
+    subplot(1,3,[1 2])
+    yyaxis left
+    semilogx(pN,0.5:1:19.5,'o-','Color','#c51b7d','DisplayName','Normal (A-D)','LineWidth',1.5,'MarkerSize',5);
+    hold on
+    semilogx(pL,0.5:1:19.5,'o-','Color','#4d9221','DisplayName','Lognormal (A-D)','LineWidth',1.5,'MarkerSize',5);
+    if showOtherTests == true
+        semilogx(pN2,1:1:20,'o-','Color','#c51b7d','DisplayName','Normal (chi^2)','LineWidth',1.5,'MarkerSize',5);
+        semilogx(pN3,1:1:20,'o--','Color','#c51b7d','DisplayName','Normal (Lil.)','LineWidth',1.5,'MarkerSize',5);
+        semilogx(px1,1:1:20,'o-','Color','#4d9221','DisplayName','Lognormal (chi^2)','LineWidth',1.5,'MarkerSize',5);
+        semilogx(px2,1:1:20,'o--','Color','#4d9221','DisplayName','Lognormal (Lil.)','LineWidth',1.5,'MarkerSize',5);
+    end
+    set(gca,"YDir","reverse"); legend();
+    yticklabels(0:20:200);
+    ylim([0 20]);
+    ylabel("Depth (m) (10-m bins)");
+    yyaxis right
+    yline(meanCM,DisplayName="p_{DCM} \pm 5/95",Interpreter="latex");
+    yline(CM_5pct,HandleVisibility="off");
+    yline(CM_95pct,HandleVisibility="off");
+    xline(0.005,":","\alpha","DisplayName","\alpha = 0.005");
+    hold off
+    set(gca,"YDir","reverse"); legend();
+    yticklabels({}); grid on;
+    ax = gca;
+    ax.YAxis(1).Color = 'k';
+    ax.YAxis(2).Color = 'k';
+    ylim([0 200]);
+    xlim([0.5e-3 1]);
+    xlabel("p-value");
+    
+    subplot(1,3,3)
+    barh(obs,'FaceColor','#d3d3d3');
+    hold on
+    xline(30);
+    set(gca,"YDir","reverse"); xlabel("No. of Obs.");
+    ylim([0.5 20.5]); yticklabels({});
 end
-
-% Figure 2. chl-a. Is the data normal or lognormal?
-figure;
-if showL0title == true
-    sgtitle("chl-a (L0): " + "BATS "+num2str(YMD(1))+" - " + num2str(YMD(end))+"");
-end
-subplot(1,3,[1 2])
-yyaxis left
-semilogx(pN,0.5:1:19.5,'o-','Color','#c51b7d','DisplayName','Normal (A-D)','LineWidth',1.5,'MarkerSize',5);
-hold on
-semilogx(pL,0.5:1:19.5,'o-','Color','#4d9221','DisplayName','Lognormal (A-D)','LineWidth',1.5,'MarkerSize',5);
-if showOtherTests == true
-    semilogx(pN2,1:1:20,'o-','Color','#c51b7d','DisplayName','Normal (chi^2)','LineWidth',1.5,'MarkerSize',5);
-    semilogx(pN3,1:1:20,'o--','Color','#c51b7d','DisplayName','Normal (Lil.)','LineWidth',1.5,'MarkerSize',5);
-    semilogx(px1,1:1:20,'o-','Color','#4d9221','DisplayName','Lognormal (chi^2)','LineWidth',1.5,'MarkerSize',5);
-    semilogx(px2,1:1:20,'o--','Color','#4d9221','DisplayName','Lognormal (Lil.)','LineWidth',1.5,'MarkerSize',5);
-end
-set(gca,"YDir","reverse"); legend();
-yticklabels(0:20:200);
-ylim([0 20]);
-ylabel("Depth (m) (10-m bins)");
-yyaxis right
-yline(meanCM,DisplayName="p_{DCM} \pm 5/95",Interpreter="latex");
-yline(CM_5pct,HandleVisibility="off");
-yline(CM_95pct,HandleVisibility="off");
-xline(0.005,":","\alpha","DisplayName","\alpha = 0.005");
-hold off
-set(gca,"YDir","reverse"); legend();
-yticklabels({}); grid on;
-ax = gca;
-ax.YAxis(1).Color = 'k';
-ax.YAxis(2).Color = 'k';
-ylim([0 200]);
-xlim([0.5e-3 1]);
-xlabel("p-value");
-
-subplot(1,3,3)
-barh(obs,'FaceColor','#d3d3d3');
-hold on
-xline(30);
-set(gca,"YDir","reverse"); xlabel("No. of Obs.");
-ylim([0.5 20.5]); yticklabels({});
 
 %% Find Mixed Layer Depth
 % Calculate the Mixed Layer Depth (MLD) from hydrographic data. This is
@@ -344,8 +341,9 @@ end
 mld_pc(405) = gsw_mlp(SA(64123:end),CT(64123:end),p(64123:end));
 
 % Remove casts that are unrealistic.
-mld_pc(mld_pc>300) = nan;
-mld_pc(isnan(mld_pc)) = 20;
+mld_pc(mld_pc>500) = nan;
+% mld_pc(isnan(mld_pc)) = 20; % reset removed cast as minimum MLD possible
+
 
 %% Compare depths: DCM vs ML
 % Compare the depth of the DCM and the ML for each cruise. We are
@@ -370,14 +368,16 @@ for i = 1:405
     end
 end
 
-figure;
-plot(dcmBats(:,1),dcmBats(:,2),DisplayName="Chl-a Maximum");
-hold on
-plot(newMLDcrnVector,newMlp,DisplayName="Mixed Layer Depth");
-hold off
-set(gca,"YDir","reverse");
-ylabel("Pressure [dbar]"); xlabel("Cruise No.");
-legend();
+if showDcmMldComp == true
+    figure;
+    plot(dcmBats(:,1),dcmBats(:,2),DisplayName="Chl-a Maximum");
+    hold on
+    plot(newMLDcrnVector,newMlp,DisplayName="Mixed Layer Depth");
+    hold off
+    set(gca,"YDir","reverse");
+    ylabel("Pressure [dbar]"); xlabel("Cruise No.");
+    legend();
+end
 
 % Calculate where DCM is beneath the ML. This is important because it is on
 % these cruises where we apply our L1/L2 analysis.
@@ -391,8 +391,10 @@ for i = 1:405
     end
 end
 
-figure
-plot(1:1:405,dcmBelow);
+if showDcmMldComp == true
+    figure
+    plot(1:1:405,dcmBelow);
+end
 
 % add column to start
 newChla = [CRN_no' chlagrid];
@@ -470,58 +472,60 @@ for i = 1:20
         end
     end
 end
+%% L0 Analysis.
+if showL0 == true
+    % A-D test: L0. (Fig. 2) [DCM deeper than ML]
+    % Figure 2X. chl-a. L0. Is the data normal or lognormal? This time we look
+    % at only those cruises where the DCM was beneath the MLD.
+    
+    figure;
+    if showL0title == true
+        sgtitle("chl-a (L0): " + "BATS "+num2str(YMD(1))+" - " + num2str(YMD(end))+"");
+    end
+    subplot(1,3,[1 2])
+    yyaxis left
+    semilogx(pN,0.5:1:19.5,'o-','Color','#c51b7d','DisplayName','Normal (A-D)','LineWidth',1.5,'MarkerSize',5);
+    hold on
+    semilogx(pL,0.5:1:19.5,'o-','Color','#4d9221','DisplayName','Lognormal (A-D)','LineWidth',1.5,'MarkerSize',5);
+    if showOtherTests == true
+        semilogx(pN2,1:1:20,'o-','Color','#c51b7d','DisplayName','Normal (chi^2)','LineWidth',1.5,'MarkerSize',5);
+        semilogx(pN3,1:1:20,'o--','Color','#c51b7d','DisplayName','Normal (Lil.)','LineWidth',1.5,'MarkerSize',5);
+        semilogx(px1,1:1:20,'o-','Color','#4d9221','DisplayName','Lognormal (chi^2)','LineWidth',1.5,'MarkerSize',5);
+        semilogx(px2,1:1:20,'o--','Color','#4d9221','DisplayName','Lognormal (Lil.)','LineWidth',1.5,'MarkerSize',5);
+    end
+    set(gca,"YDir","reverse"); legend();
+    yticklabels(0:20:200);
+    ylim([0 20]);
+    ylabel("Pressure [dbar]",Interpreter='latex',FontSize=13);
+    yyaxis right
+    yline(meanCM,DisplayName="p_{DCM} \pm 5/95",LineWidth=1,Color="#808080",Interpreter="latex");
+    yline(CM_5pct,LineWidth=1,Color="#808080",HandleVisibility="off");
+    yline(CM_95pct,LineWidth=1,Color="#808080",HandleVisibility="off");
+    xline(0.005,'-','\color{black}\alpha=0.005',LineWidth=1.5,Color="#808080",HandleVisibility="off",LabelOrientation="horizontal",LabelHorizontalAlignment="center",FontSize=13);
+    hold off
+    set(gca,"YDir","reverse"); legend();
+    yticklabels({});
+    ylim([0 200]);
+    xlim([0.5e-3 1]);
+    xlabel("A-D p-value",Interpreter='latex',FontSize=13);
+    ax = gca;
+    ax.YAxis(1).Color = 'k';
+    ax.YAxis(2).Color = 'k';
+    legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);
+    grid on
+    sgtitle("L0","Interpreter","latex");
+    
+    subplot(1,3,3)
+    barh(obs,'FaceColor','#d3d3d3');
+    hold on
+    xline(30);
+    set(gca,"YDir","reverse"); xlabel("No. of Obs.",Interpreter='latex',FontSize=13);
+    ylim([0.5 20.5]); yticklabels({});
 
-%% A-D test: L0. (Fig. 2) [DCM deeper than ML]
-% Figure 2X. chl-a. L0. Is the data normal or lognormal? This time we look
-% at only those cruises where the DCM was beneath the MLD.
-
-figure;
-if showL0title == true
-    sgtitle("chl-a (L0): " + "BATS "+num2str(YMD(1))+" - " + num2str(YMD(end))+"");
 end
-subplot(1,3,[1 2])
-yyaxis left
-semilogx(pN,0.5:1:19.5,'o-','Color','#c51b7d','DisplayName','Normal (A-D)','LineWidth',1.5,'MarkerSize',5);
-hold on
-semilogx(pL,0.5:1:19.5,'o-','Color','#4d9221','DisplayName','Lognormal (A-D)','LineWidth',1.5,'MarkerSize',5);
-if showOtherTests == true
-    semilogx(pN2,1:1:20,'o-','Color','#c51b7d','DisplayName','Normal (chi^2)','LineWidth',1.5,'MarkerSize',5);
-    semilogx(pN3,1:1:20,'o--','Color','#c51b7d','DisplayName','Normal (Lil.)','LineWidth',1.5,'MarkerSize',5);
-    semilogx(px1,1:1:20,'o-','Color','#4d9221','DisplayName','Lognormal (chi^2)','LineWidth',1.5,'MarkerSize',5);
-    semilogx(px2,1:1:20,'o--','Color','#4d9221','DisplayName','Lognormal (Lil.)','LineWidth',1.5,'MarkerSize',5);
-end
-set(gca,"YDir","reverse"); legend();
-yticklabels(0:20:200);
-ylim([0 20]);
-ylabel("Pressure [dbar]",Interpreter='latex',FontSize=13);
-yyaxis right
-yline(meanCM,DisplayName="p_{DCM} \pm 5/95",LineWidth=1,Color="#808080",Interpreter="latex");
-yline(CM_5pct,LineWidth=1,Color="#808080",HandleVisibility="off");
-yline(CM_95pct,LineWidth=1,Color="#808080",HandleVisibility="off");
-xline(0.005,'-','\color{black}\alpha=0.005',LineWidth=1.5,Color="#808080",HandleVisibility="off",LabelOrientation="horizontal",LabelHorizontalAlignment="center",FontSize=13);
-hold off
-set(gca,"YDir","reverse"); legend();
-yticklabels({});
-ylim([0 200]);
-xlim([0.5e-3 1]);
-xlabel("A-D p-value",Interpreter='latex',FontSize=13);
-ax = gca;
-ax.YAxis(1).Color = 'k';
-ax.YAxis(2).Color = 'k';
-legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);
-grid on
-sgtitle("L0","Interpreter","latex");
-
-subplot(1,3,3)
-barh(obs,'FaceColor','#d3d3d3');
-hold on
-xline(30);
-set(gca,"YDir","reverse"); xlabel("No. of Obs.",Interpreter='latex',FontSize=13);
-ylim([0.5 20.5]); yticklabels({});
-
 
 %% L1 A-D. (Fig. 3a)
-threshold = 30;
+if showL1 == true
 
 % Set whether to analyse total data or...
 % only data for cruises where the DCM is beneath the ML 
@@ -649,10 +653,10 @@ ax = figure;
 vuongRes = nan(length(tr));
 for i = 1:length(tr)
     if rV(1,i) > 0
-        disp('Normal');
+        %disp('Normal');
         vuongRes(i) = 1;
     elseif rV(1,i) < 0
-        disp('Lognormal');
+        %disp('Lognormal');
         vuongRes(i) = 2;
     end
 end
@@ -754,31 +758,21 @@ colormap(gca,cbrewer2("Greens"));
 cbar = colorbar;
 cbar.Direction = "reverse";
 cbar.Ticks = 1:1:length(tr);
-% cbar.TickLabels = p(1):10:p(end);
 cbar.TickLabels = tr;
 cbar.Label.String = "P [dbar]";
 cbar.Label.Position = [0.7 1-0.35];
 cbar.Label.Rotation = 0;
-% hold on
-% add polynomial
-% [skS,id] = sort(sk);
-% kuS = ku(id);
-% [p,S] = polyfit(skS,kuS,2);
-% [f,delta] = polyval(p,skS,S);
-% plot(skS,f,'r-',DisplayName="Fit");
-% plot(skS,f+2*delta,'m--',DisplayName='95% Prediction Interval');
-% plot(skS,f-2*delta,'m--',HandleVisibility='off');
+
 hold off
 grid minor;
 ylim([1 kurtLimB]); xlim([skewLimA skewLimB]);
 xlabel('Skewness','FontSize',13,'Interpreter','latex'); ylabel('Kurtosis',FontSize=13,Interpreter='latex');
 lgd = legend('Location','best');
-% title(lgd,'Distributions');
 title('L1','Interpreter','latex','FontSize',13);
-% sgtitle("L2 chl-$a$ skewness-kurtosis 1988-2021","Interpreter","latex");
-% exportgraphics(ax,"figures/L1/bottle/log/chla_ad_skKu.png");
-%% L2 A-D. (Fig. 3b)
 
+end
+%% L2 A-D. (Fig. 3b)
+if showL2 == true
 % Set whether to analyse total data or...
 % only data for cruises where the DCM is beneath the ML 
 dcmBeneathML = true;
@@ -952,33 +946,8 @@ histogram(C_out(pB10==-100));
 figure
 n = length(pr);
 
-% Create Annotations for Vuong's Test Results
-annot = strings(1,n);
-anClr = strings(1,n);
-anClr(cellfun(@isempty,anClr)) = '#FFFFFF';
-tmpEmph = strings(1,n); tmpEmph(cellfun(@isempty,tmpEmph)) = 'bold';
-
-
 alphaHy = 0.005;
 alphaLlr = 0.1;
-
-for i = 1:n
-    if vuongRes(i) == 1 && ad(1,i) > alphaHy
-        annot(i) = "Normal";
-        anClr(i) = '#c51b7d';
-        if pV(1,i) > alphaLlr
-            tmpEmph(i) = 'normal';
-        end
-    elseif vuongRes(i) == 2 && ad(2,i) > alphaHy
-        annot(i) = "Lognormal";
-        anClr(i) = '#4d9221';
-        if pV(1,i) > alphaLlr
-            tmpEmph(i) = 'normal';
-        end
-    else
-        annot(i) = "";
-    end
-end
 
 % Lognormal family: generate theoretical skewness and kurtosis
 sigTh = linspace(0,1,1000);
@@ -1023,7 +992,6 @@ grid minor;
 ylim([-60 60]);
 xlim([0.1*alphaHy 1]);
 set(gca,'YDir','reverse');
-% set(gca,"YTick",limits(1):10:limits(2));
 ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
 sgtitle("L2","Interpreter","latex");
 
@@ -1084,3 +1052,5 @@ ylim([1 kurtLimB]); xlim([skewLimA skewLimB]);
 xlabel('Skewness',FontSize=13,Interpreter='latex'); 
 ylabel('Kurtosis',FontSize=13,Interpreter='latex');
 title('L2','Interpreter','latex','FontSize',13);
+
+end

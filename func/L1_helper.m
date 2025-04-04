@@ -1,4 +1,4 @@
-function [ax,p,ks,obs,Sk,Ku,rV,pV,ad,cOut,pOut] = L1_helper(D,maxMld,threshold,testSel,hypTest,logAxis,season,suppressFig)
+function [ax,p,ks,obs,rV,pV,ad,cOut,pOut] = L1_helper(D,maxMld,threshold,testSel,hypTest,logAxis,season,suppressFig)
 %L1_helper Calculate statistical tests for chl-a and other variables in the mixed layer (L1).
 % Specifically, we calculate the hypothesis test
 % results (A-D or K-S) here. Additionally, we also calculate the Vuong
@@ -120,29 +120,20 @@ if season ~= 0
         cIn = cIn(winIds);
         pIn = pIn(winIds);
         idIn = idIn(winIds);
-        %nSea = length(winIds);
     elseif season == 2
         cIn = cIn(sprIds);
         pIn = pIn(sprIds);
         idIn = idIn(sprIds);
-        %nSea = length(sprIds);
     elseif season == 3
         cIn = cIn(sumIds);
         pIn = pIn(sumIds);
         idIn = idIn(sumIds);
-        %nSea = length(sumIds);
     elseif season == 4
         cIn = cIn(autIds);
         pIn = pIn(autIds);
         idIn = idIn(autIds);
-        %nSea = length(autIds);
     end
 end
-% end seasonal analysis
-
-% Extract data from the mixed layer.
-% this code used to be contained within the function below:
-% [idOut,pOut,cOut] = extractMldVals(idIn,pIn,cIn,maxMld);
 
 % Extract the cruise number 'crn'.
 tmp = num2str(idIn);
@@ -187,10 +178,6 @@ crnOut = tmpCrn(~isnan(tmpCrn));
 cOut = tmpX(~isnan(tmpX));
 idOut = tmpId(~isnan(tmpId));
 
-
-% Following adapted from:
-% [~,pOutB,cOutB,~,~] = cleanAndBin(pOut,cOut,idOut');
-
 % Remove bottles that are too close to the surface (< 2.5 dbar)
 idRm = pOut > 2.5;
 pOut = pOut(idRm);
@@ -227,10 +214,6 @@ n10 = max(pb10);
 cOutB = cOut;
 pOutB = pb10;
 
-% Following adapted from:
-% 4. Calculate KS p-value, skewness, kurtosis, Vuong Parameters
-% [ks,obs,p,Sk,Ku,rV,pV,ad] = ksOfBinnedCon(cOutB,pOutB,10,threshold);
-
 % Apply statistical tests to the cleaned data.
 % Specifically, we apply the Kolmogorov-Smirnov (K-S) and Anderson-Darling
 % (A-D) tests to determine if the individual distributions tested are good
@@ -238,7 +221,7 @@ pOutB = pb10;
 % of these distributions to determine which is best in the case that both
 % are deemed good fits by the previous hypothesis test. Finally, the
 % skewness and kurtosis of the data is recorded.
-obs = nan(20,1); n = 20; depth = 5:10:200; ad = nan(4,20);
+obs = nan(20,1); n = 20; depth = 5:10:200; ad = nan(4,20); ks = nan(5,20);
 for i = 1:n
     % find concentration X_i at binned pressure i
     X_i = cOutB(pOutB==i);
@@ -252,8 +235,6 @@ for i = 1:n
         [~,ad(3,i)] = adtest(X_i,"Distribution","weibull");
         [~,ad(4,i)] = adtest(X_i,Distribution=pdG,MCTol=0.05);
         [rV(:,i),pV(:,i)] = bbvuong(X_i);
-        sk(i) = skewness(X_i);
-        ku(i) = kurtosis(X_i);
     end
     obs(i) = length(X_i);
     clear X_i;
@@ -264,8 +245,6 @@ for i = 1:n
     if obs(i) < threshold
         ad(:,i) = nan;
         ks(:,i) = nan;
-        sk(i) = nan;
-        ku(i) = nan;
         rV(:,i) = nan;
         pV(:,i) = nan;
     end
@@ -279,284 +258,41 @@ for i = 1:n
     end
 end
 p = depth(tmp);
-Sk = sk(tmp);
-Ku = ku(tmp);
 rV = rV(:,tmp);
 pV = pV(:,tmp);
 ks = ks(:,~all(isnan(ks)));
 ad = ad(:,~all(isnan(ad)));
 
 
-% 4.a. Intercomparison of results from Vuong's Test: easily see best
+% Intercomparison of results from Vuong's Test: easily see best
 % distribution at each depth.
-
-% Compare results from Vuong Test.
-% Currently only outputting in plot for testSel = 2 case.
 vuongRes = nan(1,length(p));
 if testSel == 4
     for i = 1:length(p)
         if rV(1,i) & rV(2,i) & rV(3,i) > 0
-            disp('Normal');
             vuongRes(i) = 1;
         elseif rV(1,i) < 0 & rV(5,i) > 0 & rV(6,i) > 0
-            disp('Lognormal');
             vuongRes(i) = 2;
         elseif rV(2,i) < 0 & rV(5,i) < 0 & rV(8,i) > 0
-            disp('Weibull');
             vuongRes(i) = 3;
         elseif rV(3,i) < 0 & rV(6,i) < 0 & rV(8,i) < 0
-            disp('Gamma');
             vuongRes(i) = 4;
         end
     end
 elseif testSel == 2         % normal-lognormal
     for i = 1:length(p)
         if rV(1,i) > 0
-            disp('Normal');
             vuongRes(i) = 1;
         elseif rV(1,i) < 0
-            disp('Lognormal');
             vuongRes(i) = 2;
         end
     end
 end
 
-% Now plot the results
+% Plot the results.
 if suppressFig == false
     ax = figure;
-    %plotKs(p,ks,obs,Sk,Ku,0.5,10.5,true,threshold,vuongRes,pV,[0 100],false,hypTest,ad,testSel,"bot",logAxis);
     n = length(p);
-    
-    % Create Annotations for Vuong's Test Results
-    annot = strings(1,n);
-    anClr = strings(1,n);
-    anClr(cellfun(@isempty,anClr)) = '#FFFFFF';
-    tmpEmph = strings(1,n); tmpEmph(cellfun(@isempty,tmpEmph)) = 'bold';
-    
-    % Plot parameters were here. 
-    
-    
-    if testSel == 4
-        for i = 1:n
-            if strcmp(hypTest,"ks")
-                if vuongRes(i) == 1 && ks(1,i) > alphaHy
-                    % Remove label if only one dist is not rejected by K-S.
-                    if length(find(ks(:,i)>alphaHy)) == 1
-                        tmp = "";
-                    else
-                        tmp = "Normal";
-                    end
-                    anClr(i) = '#a6cee3';
-                    if pV(1,i) > alphaLlr && ks(2,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," L");
-                    end
-                    if pV(2,i) > alphaLlr && ks(3,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," W");
-                    end
-                    if pV(3,i) > alphaLlr && ks(4,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," G");
-                    end
-                    annot(i) = tmp;
-                elseif vuongRes(i) == 2 && ks(2,i) > alphaHy
-                    % Remove label if only one dist is not rejected by K-S.
-                    if length(find(ks(:,i)>alphaHy)) == 1
-                        tmp = "";
-                    else
-                        tmp = "Lognormal";
-                    end
-                    anClr(i) = '#1f78b4';
-                    if pV(1,i) > alphaLlr && ks(1,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," N");
-                    end
-                    if pV(5,i) > alphaLlr && ks(3,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," W");
-                    end
-                    if pV(6,i) > alphaLlr && ks(4,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," G");
-                    end
-                    annot(i) = tmp;
-                elseif vuongRes(i) == 3 && ks(3,i) > alphaHy
-                    % Remove label if only one dist is not rejected by K-S.
-                    if length(find(ks(:,i)>alphaHy)) == 1
-                        tmp = "";
-                    else
-                        tmp = "Weibull";
-                    end
-                    anClr(i) = '#b2df8a';
-                    if pV(2,i) > alphaLlr && ks(1,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," N");
-                    end
-                    if pV(5,i) > alphaLlr && ks(2,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," L");
-                    end
-                    if pV(8,i) > alphaLlr && ks(4,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," G");
-                    end
-                    annot(i) = tmp;
-                elseif vuongRes(i) == 4 && ks(4,i) > alphaHy
-                    % Remove label if only one dist is not rejected by K-S.
-                    if length(find(ks(:,i)>alphaHy)) == 1
-                        tmp = "";
-                    else
-                        tmp = "Gamma";
-                    end
-                    anClr(i) = '#33a02c';
-                    if pV(6,i) > alphaLlr && ks(2,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," L");
-                    end
-                    if pV(3,i) > alphaLlr && ks(1,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," N");
-                    end
-                    if pV(8,i) > alphaLlr && ks(3,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," W");
-                    end
-                    annot(i) = tmp;
-                elseif vuongRes(i) == 0
-                    annot(i) = "";
-                end
-            elseif strcmp(hypTest,"ad")
-                % A-D
-                if vuongRes(i) == 1 && ad(1,i) > alphaHy
-                    % Remove label if only one dist is not rejected by K-S.
-                    if length(find(ad(:,i)>alphaHy)) == 1
-                        tmp = "";
-                    else
-                        tmp = "Normal";
-                    end
-                    anClr(i) = '#a6cee3';
-                    if pV(1,i) > alphaLlr && ad(2,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," L");
-                    end
-                    if pV(2,i) > alphaLlr && ad(3,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," W");
-                    end
-                    if pV(3,i) > alphaLlr && ad(4,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," G");
-                    end
-                    annot(i) = tmp;
-                elseif vuongRes(i) == 2 && ad(2,i) > alphaHy
-                    % Remove label if only one dist is not rejected by K-S.
-                    if length(find(ad(:,i)>alphaHy)) == 1
-                        tmp = "";
-                    else
-                        tmp = "Lognormal";
-                    end
-                    anClr(i) = '#1f78b4';
-                    if pV(1,i) > alphaLlr && ad(1,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," N");
-                    end
-                    if pV(5,i) > alphaLlr && ad(3,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," W");
-                    end
-                    if pV(6,i) > alphaLlr && ad(4,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," G");
-                    end
-                    annot(i) = tmp;
-                elseif vuongRes(i) == 3 && ad(3,i) > alphaHy
-                    % Remove label if only one dist is not rejected by K-S.
-                    if length(find(ad(:,i)>alphaHy)) == 1
-                        tmp = "";
-                    else
-                        tmp = "Weibull";
-                    end
-                    anClr(i) = '#b2df8a';
-                    if pV(2,i) > alphaLlr && ad(1,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," N");
-                    end
-                    if pV(5,i) > alphaLlr && ad(2,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," L");
-                    end
-                    if pV(8,i) > alphaLlr && ad(4,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," G");
-                    end
-                    annot(i) = tmp;
-                elseif vuongRes(i) == 4 && ad(4,i) > alphaHy
-                    % Remove label if only one dist is not rejected by K-S.
-                    if length(find(ad(:,i)>alphaHy)) == 1
-                        tmp = "";
-                    else
-                        tmp = "Gamma";
-                    end
-                    anClr(i) = '#33a02c';
-                    if pV(6,i) > alphaLlr && ad(2,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," L");
-                    end
-                    if pV(3,i) > alphaLlr && ad(1,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," N");
-                    end
-                    if pV(8,i) > alphaLlr && ad(3,i) > alphaHy
-                        tmpEmph(i) = 'normal';
-                        tmp = append(tmp," W");
-                    end
-                    annot(i) = tmp;
-                elseif vuongRes(i) == 0
-                    annot(i) = "";
-                end
-    
-            end
-        end
-    elseif testSel == 2
-        % Normal-Lognormal Case
-        for i = 1:n
-            if strcmp(hypTest,"ks")
-                if vuongRes(i) == 1 && ks(1,i) > alphaHy
-                    annot(i) = "Normal";
-                    anClr(i) = '#c51b7d';
-                    if pV(1,i) > alphaLlr
-                        tmpEmph(i) = 'normal';
-                    end
-                elseif vuongRes(i) == 2 && ks(2,i) > alphaHy
-                    annot(i) = "Lognormal";
-                    anClr(i) = '#4d9221';
-                    if pV(1,i) > alphaLlr
-                        tmpEmph(i) = 'normal';
-                    end
-                elseif vuongRes(i) == 0
-                    annot(i) = "";
-                end
-            elseif strcmp(hypTest,"ad")
-                if vuongRes(i) == 1 && ad(1,i) > alphaHy
-                    annot(i) = "Normal";
-                    anClr(i) = '#c51b7d';
-                    if pV(1,i) > alphaLlr
-                        tmpEmph(i) = 'normal';
-                    end
-                elseif vuongRes(i) == 2 && ad(2,i) > alphaHy
-                    annot(i) = "Lognormal";
-                    anClr(i) = '#4d9221';
-                    if pV(1,i) > alphaLlr
-                        tmpEmph(i) = 'normal';
-                    end
-                elseif vuongRes(i) == 0
-                    annot(i) = "";
-                end
-            end
-        end
-    end
-    
     
     subplot(1,3,3)
     barh(obs,'FaceColor','#d3d3d3');
@@ -575,21 +311,21 @@ if suppressFig == false
     hold on
     if strcmp(hypTest,"ks")
         if testSel == 4
-            plot(ks(1,:),p,'o-','Color','#a6cee3','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5);
-            plot(ks(2,:),p,'+-','Color','#1f78b4','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
-            plot(ks(3,:),p,'x-','Color','#b2df8a','DisplayName','Weibull','LineWidth',1.5,'MarkerSize',5);
-            plot(ks(4,:),p,'.-','Color','#33a02c','DisplayName','Gamma','LineWidth',1.5,'MarkerSize',5);
+            plot(ks(1,:),p,'o-','Color','#c51b7d','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5);
+            plot(ks(2,:),p,'o-','Color','#4d9221','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
+            plot(ks(3,:),p,'o-','Color','#d3d3d3','DisplayName','Weibull','LineWidth',1.5,'MarkerSize',5);
+            plot(ks(4,:),p,'o-','Color','#000000','DisplayName','Gamma','LineWidth',1.5,'MarkerSize',5);
         elseif testSel == 2
             plot(ks(1,:),p,'o-','Color','#c51b7d','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5);
-            plot(ks(2,:),p,'+--','Color','#4d9221','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
+            plot(ks(2,:),p,'o-','Color','#4d9221','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
         end
         xlabel('K-S $p$-value',Interpreter='latex',FontSize=13);
     else
         if testSel == 4
             plot(ad(1,:),p,'o-','Color','#c51b7d','DisplayName','Normal','LineWidth',1.5,'MarkerSize',5);
-            plot(ad(2,:),p,'+-','Color','#4d9221','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
-            plot(ad(3,:),p,'x-','Color','#d3d3d3','DisplayName','Weibull','LineWidth',1.5,'MarkerSize',5);
-            plot(ad(4,:),p,'.-','Color','#000000','DisplayName','Gamma','LineWidth',1.5,'MarkerSize',5);
+            plot(ad(2,:),p,'o-','Color','#4d9221','DisplayName','Lognormal','LineWidth',1.5,'MarkerSize',5);
+            plot(ad(3,:),p,'o-','Color','#d3d3d3','DisplayName','Weibull','LineWidth',1.5,'MarkerSize',5);
+            plot(ad(4,:),p,'o-','Color','#000000','DisplayName','Gamma','LineWidth',1.5,'MarkerSize',5);
         elseif testSel == 2
             for i = 1:n
                 if vuongRes(i) == 1 && ad(1,i) > alphaHy & pV(1,i) > alphaLlr && ad(2,i) > alphaHy
@@ -617,7 +353,11 @@ if suppressFig == false
     ylim(limits);
     xlim([0.1*alphaHy 1]); ylabel('Pressure [dbar]',Interpreter='latex',FontSize=13);
     set(gca,'YDir','reverse');
-    legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);
+    if season == 0
+        legend('Position',[0.4 0.7 0.07 0.12],FontSize=11);
+    else
+        legend(Location="best",FontSize=11);
+    end
     
     
 else

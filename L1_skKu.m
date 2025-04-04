@@ -1,43 +1,32 @@
-% Skewness-kurtosis analysis of the mixed layer (L1) at Station ALOHA for chl-a, other pigments, and BGC variables.
+% Skewness-kurtosis analysis of the mixed layer (L1) at Station ALOHA for chl-a.
 % We import the data, process it, and calculate the skewness and kurtosis.
 
-% This script duplicates a lot of L1_bot right now. Must clean this up.
-
 clear; clc; close all;
-addpath("baroneRoutines\"); addpath("func\");
 set(groot, "defaultFigureUnits", "centimeters", "defaultFigurePosition", [3 3 10 15]);
 
-
-%% Variables
-% Set these parameters each time the script is run.
-
-season = 0;     % if zero, run default analysis. otherwise run seasonal
-                % analysis (1 = winter, 2 = spring, 3 = summer, 4 =
-                % autumn)
+% Options and Test Cases.
+% NOTE that there is no option to set the y-limits here. To see results for
+% a deeper mixed layer you can instead adjust the threshold (but do not
+% trust values below 30).
 threshold = 30; % default threshold for statistical tests
+testSel = 2;    % 2 = norm + logn; 4 = norm + logn + weib + gamm
+season = 0;     % if zero, run default analysis. otherwise run seasonal
+                % analysis (1 = winter (DJF), 2 = spring, 3 = summer, 4 =
+                % autumn)
 
-%% Rest of code.
-
-%% Import MLD.
-ctdData = importdata("datafiles\ctd_iso_ALL.mat").ctd;
-maxMld = nan(329,1);
-for i = 1:329
-    if ~isnan([ctdData(i).mld003])
-        maxMld(i) = max([ctdData(i).mld003]);
-    end
-end
-
-clear ctdData i;
-save mldVals.mat maxMld;
-
-%% Import Data
+% Load Data: chl-a and mixed layer depth 'mld'
 tmp = importdata("data/L1/hplcChla_88-21_150.txt");
-pIn = tmp.data(:,4);
-cIn = tmp.data(:,5);
-idIn = tmp.data(:,1);
+mld = load("output\mldVals.mat").maxMld;
 
-%% seasonal analysis code
-if season ~= 0
+pIn = tmp.data(:,4);        % pressure 
+cIn = tmp.data(:,5);        % variable to test (chl-a)
+idIn = tmp.data(:,1);       % bottle ID, needed for seasonal analysis
+
+
+%% Seasonal analysis code.
+if season == 0
+    tmpT = ": L1";
+elseif season ~= 0
     botidIn = tmp.data(:,2);
     n = length(pIn);
     botidIn(botidIn==-9) = nan;
@@ -86,29 +75,27 @@ if season ~= 0
         cIn = cIn(winIds);
         pIn = pIn(winIds);
         idIn = idIn(winIds);
-        %nSea = length(winIds);
+        tmpT = ": L1 Winter";
     elseif season == 2
         cIn = cIn(sprIds);
         pIn = pIn(sprIds);
         idIn = idIn(sprIds);
-        %nSea = length(sprIds);
+        tmpT = ": L1 Spring";
     elseif season == 3
         cIn = cIn(sumIds);
         pIn = pIn(sumIds);
         idIn = idIn(sumIds);
-        %nSea = length(sumIds);
+        tmpT = ": L1 Summer";
     elseif season == 4
         cIn = cIn(autIds);
         pIn = pIn(autIds);
         idIn = idIn(autIds);
-        %nSea = length(autIds);
+        tmpT = ": L1 Autumn";
     end
 end
-%%% end seasonal analysis
 
 %% Extract data in mixed layer.
-% 2. Extract data in ML
-% [idOut,pOut,cOut] = extractMldVals(idIn,pIn,cIn,maxMld);
+
 % Extract the cruise number 'crn'.
 tmp = num2str(idIn);
 crn = str2num(tmp(:,1:3)); clear tmp;
@@ -137,7 +124,7 @@ end
 
 % Save values at pressures above (i.e. shallower than) the mixed layer depth
 for i = 1:stop-1
-    tmp = maxMld(crn(i));
+    tmp = mld(crn(i));
     if pIn(i) < tmp
         tmpP(i) = pIn(i);
         tmpCrn(i) = crn(i);
@@ -195,20 +182,16 @@ pOutB = pb10;
 % parameters related to A-D calculation are still present. These are to be
 % removed.
 
-obs = nan(20,1); n = 20; depth = 5:10:200; ad = nan(4,20);
+n = 15;
+depth = 5:10:150;
+obs = nan(n,1);
+sk = nan(n,1);
+ku = nan(n,1);
 for i = 1:n
     % find concentration X_i at binned pressure i
     X_i = cOutB(pOutB==i);
     % apply statistical tests to the data   
     if length(X_i) > 3
-        gammaParams = mle(X_i,"distribution","Gamma");
-        pdG = makedist("Gamma",gammaParams(1),gammaParams(2));
-        [~,ks(:,i),~] = statsplot2(X_i,'noplot');
-        [~,ad(2,i)] = adtest(X_i,"Distribution","logn","Alpha",0.005);
-        [~,ad(1,i)] = adtest(X_i,"Distribution","norm","Alpha",0.005);
-        [~,ad(3,i)] = adtest(X_i,"Distribution","weibull");
-        [~,ad(4,i)] = adtest(X_i,Distribution=pdG,MCTol=0.05);
-        [rV(:,i),pV(:,i)] = bbvuong(X_i);
         sk(i) = skewness(X_i);
         ku(i) = kurtosis(X_i);
     end
@@ -219,300 +202,28 @@ end
 % Remove values that do not meet the threshold
 for i = 1:n
     if obs(i) < threshold
-        ad(:,i) = nan;
-        ks(:,i) = nan;
         sk(i) = nan;
         ku(i) = nan;
-        rV(:,i) = nan;
-        pV(:,i) = nan;
     end
 end
 
 % Remove these nan values
 tmp = [];
 for i = 1:n
-    if ~isnan(sum(ad(:,i)))
+    if ~isnan(sk(i))
         tmp = [tmp i];
     end
 end
 p = depth(tmp);
-Sk = sk(tmp);
-Ku = ku(tmp);
-rV = rV(:,tmp);
-pV = pV(:,tmp);
-ks = ks(:,~all(isnan(ks)));
-ad = ad(:,~all(isnan(ad)));
-
-% 4.a. Intercomparison of results from Vuong's Test: easily see best
-% distribution at each depth.
-vuongRes = nan(1,length(p));
-
-testSel = 2;
-% 4.a.i Default Case.
-if testSel == 4
-    for i = 1:length(p)
-        if rV(1,i) & rV(2,i) & rV(3,i) > 0
-            disp('Normal');
-            vuongRes(i) = 1;
-        elseif rV(1,i) < 0 & rV(5,i) > 0 & rV(6,i) > 0
-            disp('Lognormal');
-            vuongRes(i) = 2;
-        elseif rV(2,i) < 0 & rV(5,i) < 0 & rV(8,i) > 0
-            disp('Weibull');
-            vuongRes(i) = 3;
-        elseif rV(3,i) < 0 & rV(6,i) < 0 & rV(8,i) < 0
-            disp('Gamma');
-            vuongRes(i) = 4;
-        end
-    end
-elseif testSel == 2
-% 4.a.ii. Normal-Lognormal Case ONLY.
-    for i = 1:length(p)
-        if rV(1,i) > 0
-            disp('Normal');
-            vuongRes(i) = 1;
-        elseif rV(1,i) < 0
-            disp('Lognormal');
-            vuongRes(i) = 2;
-        end
-    end
-end
-
-% 5. Plot results
-ax = figure;
+sk = sk(tmp);
+ku = ku(tmp);
 
 n = length(p);
 
-% % Create Annotations for Vuong's Test Results
-% annot = strings(1,n);
-% anClr = strings(1,n);
-% anClr(cellfun(@isempty,anClr)) = '#FFFFFF';
-% tmpEmph = strings(1,n); tmpEmph(cellfun(@isempty,tmpEmph)) = 'bold';
-% % Default Case
-% 
-% alphaHy = 0.005;
-% alphaLlr = 0.10;
 
-% if testSel == 4
-%     for i = 1:n
-%         if strcmp(hypTest,"ks")
-%             if vuongRes(i) == 1 && ks(1,i) > alphaHy
-%                 % Remove label if only one dist is not rejected by K-S.
-%                 if length(find(ks(:,i)>alphaHy)) == 1
-%                     tmp = "";
-%                 else
-%                     tmp = "Normal";
-%                 end
-%                 anClr(i) = '#a6cee3';
-%                 if pV(1,i) > alphaLlr && ks(2,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," L");
-%                 end
-%                 if pV(2,i) > alphaLlr && ks(3,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," W");
-%                 end
-%                 if pV(3,i) > alphaLlr && ks(4,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," G");
-%                 end
-%                 annot(i) = tmp;
-%             elseif vuongRes(i) == 2 && ks(2,i) > alphaHy
-%                 % Remove label if only one dist is not rejected by K-S.
-%                 if length(find(ks(:,i)>alphaHy)) == 1
-%                     tmp = "";
-%                 else
-%                     tmp = "Lognormal";
-%                 end
-%                 anClr(i) = '#1f78b4';
-%                 if pV(1,i) > alphaLlr && ks(1,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," N");
-%                 end
-%                 if pV(5,i) > alphaLlr && ks(3,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," W");
-%                 end
-%                 if pV(6,i) > alphaLlr && ks(4,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," G");
-%                 end
-%                 annot(i) = tmp;
-%             elseif vuongRes(i) == 3 && ks(3,i) > alphaHy
-%                 % Remove label if only one dist is not rejected by K-S.
-%                 if length(find(ks(:,i)>alphaHy)) == 1
-%                     tmp = "";
-%                 else
-%                     tmp = "Weibull";
-%                 end
-%                 anClr(i) = '#b2df8a';
-%                 if pV(2,i) > alphaLlr && ks(1,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," N");
-%                 end
-%                 if pV(5,i) > alphaLlr && ks(2,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," L");
-%                 end
-%                 if pV(8,i) > alphaLlr && ks(4,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," G");
-%                 end
-%                 annot(i) = tmp;
-%             elseif vuongRes(i) == 4 && ks(4,i) > alphaHy
-%                 % Remove label if only one dist is not rejected by K-S.
-%                 if length(find(ks(:,i)>alphaHy)) == 1
-%                     tmp = "";
-%                 else
-%                     tmp = "Gamma";
-%                 end
-%                 anClr(i) = '#33a02c';
-%                 if pV(6,i) > alphaLlr && ks(2,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," L");
-%                 end
-%                 if pV(3,i) > alphaLlr && ks(1,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," N");
-%                 end
-%                 if pV(8,i) > alphaLlr && ks(3,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," W");
-%                 end
-%                 annot(i) = tmp;
-%             elseif vuongRes(i) == 0
-%                 annot(i) = "";
-%             end
-%         elseif strcmp(hypTest,"ad")
-%             % A-D
-%             if vuongRes(i) == 1 && ad(1,i) > alphaHy
-%                 % Remove label if only one dist is not rejected by K-S.
-%                 if length(find(ad(:,i)>alphaHy)) == 1
-%                     tmp = "";
-%                 else
-%                     tmp = "Normal";
-%                 end
-%                 anClr(i) = '#a6cee3';
-%                 if pV(1,i) > alphaLlr && ad(2,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," L");
-%                 end
-%                 if pV(2,i) > alphaLlr && ad(3,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," W");
-%                 end
-%                 if pV(3,i) > alphaLlr && ad(4,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," G");
-%                 end
-%                 annot(i) = tmp;
-%             elseif vuongRes(i) == 2 && ad(2,i) > alphaHy
-%                 % Remove label if only one dist is not rejected by K-S.
-%                 if length(find(ad(:,i)>alphaHy)) == 1
-%                     tmp = "";
-%                 else
-%                     tmp = "Lognormal";
-%                 end
-%                 anClr(i) = '#1f78b4';
-%                 if pV(1,i) > alphaLlr && ad(1,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," N");
-%                 end
-%                 if pV(5,i) > alphaLlr && ad(3,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," W");
-%                 end
-%                 if pV(6,i) > alphaLlr && ad(4,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," G");
-%                 end
-%                 annot(i) = tmp;
-%             elseif vuongRes(i) == 3 && ad(3,i) > alphaHy
-%                 % Remove label if only one dist is not rejected by K-S.
-%                 if length(find(ad(:,i)>alphaHy)) == 1
-%                     tmp = "";
-%                 else
-%                     tmp = "Weibull";
-%                 end
-%                 anClr(i) = '#b2df8a';
-%                 if pV(2,i) > alphaLlr && ad(1,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," N");
-%                 end
-%                 if pV(5,i) > alphaLlr && ad(2,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," L");
-%                 end
-%                 if pV(8,i) > alphaLlr && ad(4,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," G");
-%                 end
-%                 annot(i) = tmp;
-%             elseif vuongRes(i) == 4 && ad(4,i) > alphaHy
-%                 % Remove label if only one dist is not rejected by K-S.
-%                 if length(find(ad(:,i)>alphaHy)) == 1
-%                     tmp = "";
-%                 else
-%                     tmp = "Gamma";
-%                 end
-%                 anClr(i) = '#33a02c';
-%                 if pV(6,i) > alphaLlr && ad(2,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," L");
-%                 end
-%                 if pV(3,i) > alphaLlr && ad(1,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," N");
-%                 end
-%                 if pV(8,i) > alphaLlr && ad(3,i) > alphaHy
-%                     tmpEmph(i) = 'normal';
-%                     tmp = append(tmp," W");
-%                 end
-%                 annot(i) = tmp;
-%             elseif vuongRes(i) == 0
-%                 annot(i) = "";
-%             end
-% 
-%         end
-%     end
-% elseif testSel == 2
-%     % Normal-Lognormal Case
-%     for i = 1:n
-%         if strcmp(hypTest,"ks")
-%             if vuongRes(i) == 1 && ks(1,i) > alphaHy
-%                 annot(i) = "Normal";
-%                 anClr(i) = '#c51b7d';
-%                 if pV(1,i) > alphaLlr
-%                     tmpEmph(i) = 'normal';
-%                 end
-%             elseif vuongRes(i) == 2 && ks(2,i) > alphaHy
-%                 annot(i) = "Lognormal";
-%                 anClr(i) = '#4d9221';
-%                 if pV(1,i) > alphaLlr
-%                     tmpEmph(i) = 'normal';
-%                 end
-%             elseif vuongRes(i) == 0
-%                 annot(i) = "";
-%             end
-%         elseif strcmp(hypTest,"ad")
-%             if vuongRes(i) == 1 && ad(1,i) > alphaHy
-%                 annot(i) = "Normal";
-%                 anClr(i) = '#c51b7d';
-%                 if pV(1,i) > alphaLlr
-%                     tmpEmph(i) = 'normal';
-%                 end
-%             elseif vuongRes(i) == 2 && ad(2,i) > alphaHy
-%                 annot(i) = "Lognormal";
-%                 anClr(i) = '#4d9221';
-%                 if pV(1,i) > alphaLlr
-%                     tmpEmph(i) = 'normal';
-%                 end
-%             elseif vuongRes(i) == 0
-%                 annot(i) = "";
-%             end
-%         end
-%     end
-% end
+%% Create figure.
+
+% First draw theoretical curves for the various distribution families.
 
 % Lognormal family: generate theoretical skewness and kurtosis
 sigTh = linspace(0,1,1000);
@@ -520,12 +231,33 @@ for i = 1:length(sigTh)
     skLogn(i) = (exp(sigTh(i)^2) + 2)*(sqrt(exp(sigTh(i)^2) - 1));
     kuLogn(i) = exp(4*sigTh(i)^2) + 2*exp(3*sigTh(i)^2) + 3*exp(2*sigTh(i)^2) - 3;
 end
-
-% Negative Distributions
 skLognN = -skLogn;
 kuLognN = kuLogn;
 
+if testSel == 4
+    % Gamma family: generate theoretical skewness and kurtosis
+    kTh = linspace(0.04,3000,1500000);
+    for i = 1:length(kTh)
+        skGam(i) = 2/sqrt(kTh(i));
+        kuGam(i) = 6/kTh(i) + 3;
+    end
+    skGamN= -skGam;
+    kuGamN = kuGam;
+    
+    % Weibull family: generate theoretical skewness and kurtosis
+    kWbl = linspace(0.1,3.5,10000);
+    for i = 1:length(kWbl)
+        skWbl(i) = ( gamma(1 + 3/kWbl(i)) - 3*gamma(1 + 1/kWbl(i))*gamma(1 + 2/kWbl(i)) + 2*(gamma(1 + 1/kWbl(i)))^3 ) ./ ...
+            ( gamma(1 + 2/kWbl(i)) -  (gamma(1 + 1/kWbl(i)))^2 )^(3/2);
+        kuWbl(i) = ( gamma(1 + 4/kWbl(i)) - 4*gamma(1 + 1/kWbl(i))*gamma(1 + 3/kWbl(i)) + 6*( (gamma(1 + 1/kWbl(i)) )^2)*gamma(1 + 2/kWbl(i)) - 3*( (gamma(1 + 1/kWbl(i)))^4 ) ) ./ ...
+           ( gamma(1 + 2/kWbl(i)) - ( gamma(1 + 1/kWbl(i)) )^2 )^2;
+    end
+    skWblN = -skWbl;
+    kuWblN = kuWbl;
 
+end
+
+% Automatically adjust limits.
 kurtLimB = 10; skewLimA = 0; skewLimB = 2.5;
 if max(ku) > 10 & min(sk) < 0
     kurtLimB = max(ku) + 1;
@@ -545,51 +277,55 @@ else
     skewLimB = 2.5;
 end
 
+% Plot results.
+ax = figure;
 scatter(nan,nan,72,[0.8 0.8 0.8],DisplayName='Data');
 hold on
-scatter(0,3,72,[0.2 0.2 0.2],'DisplayName','Normal',Marker='pentagram',LineWidth=2.5);
+scatter(0,3,72,[0.7725490196078432 0.10588235294117647 0.49019607843137253],'DisplayName','Normal',Marker='pentagram',LineWidth=2.5);
 if testSel == 2
     plot(skLogn,kuLogn,'DisplayName','Lognormal','Color','#808080',LineStyle='-',LineWidth=1.3);
     plot(skLognN,kuLognN,'Color','#808080',LineStyle='-',LineWidth=1.3,HandleVisibility='off');
 elseif testSel == 4
-    plot(skLogn,kuLogn,'DisplayName','Logn.','Color','#1f78b4',LineStyle='--',LineWidth=1.7);
-    plot(skLognN,kuLognN,'Color','#1f78b4',LineStyle='--',LineWidth=1.7,HandleVisibility='off');
-    plot(skWbl,kuWbl,'DisplayName','Weib.','Color','#b2df8a',LineStyle='-',LineWidth=1.7);
-    plot(skWblN,kuWblN,'Color','#b2df8a',LineStyle='-',LineWidth=1.7,HandleVisibility='off');
-    plot(skGam,kuGam,'DisplayName','Gam.','Color','#33a02c',LineStyle='--',LineWidth=1.7);
-    plot(skGamN,kuGamN,'Color','#33a02c',LineStyle='--',LineWidth=1.7,HandleVisibility='off');
-    scatter(2,9,'DisplayName','Exp.',Marker='+',LineWidth=1);
-    scatter(0,9/5,'DisplayName','Uni.',Marker='*',LineWidth=1);
-    scatter(0,21/5,'DisplayName','Logi.',Marker='.',LineWidth=1);
-    scatter(1.1395,5.4,'DisplayName','LEV',Marker='x',LineWidth=1);
+    plot(skLogn,kuLogn,'DisplayName','Logn.','Color','#4d9221',LineStyle='-',LineWidth=1.7);
+    plot(skLognN,kuLognN,'Color','#4d9221',LineStyle='-',LineWidth=1.7,HandleVisibility='off');
+    plot(skWbl,kuWbl,'DisplayName','Weib.','Color','#d3d3d3',LineStyle='-',LineWidth=1.7);
+    plot(skWblN,kuWblN,'Color','#d3d3d3',LineStyle='-',LineWidth=1.7,HandleVisibility='off');
+    plot(skGam,kuGam,'DisplayName','Gam.','Color','#000000',LineStyle='-',LineWidth=1.7);
+    plot(skGamN,kuGamN,'Color','#000000',LineStyle='-',LineWidth=1.7,HandleVisibility='off');
 end
-scatter(Sk,Ku,72,[0.8 0.8 0.8],HandleVisibility="off");
-clr = 1:1:length(p);
-scatter(Sk,Ku,54,clr,"filled","o",HandleVisibility="off");
-colormap(gca,cbrewer2("Greens"));
-cbar = colorbar;
+scatter(sk,ku,72,[0.8 0.8 0.8],HandleVisibility="off");
+if length(p) > 3
+    clr = 1:1:length(p);
+    scatter(sk,ku,54,clr,"filled","o",HandleVisibility="off");
+    colormap(gca,cbrewer2("Greens"));
+    cbar = colorbar;
+    cbar.Ticks = 1:1:length(p);
+    cbar.TickLabels = p;
+    cbar.Label.Position = [0.7 1-0.35];
+elseif length(p) == 3
+    c = [0.9686    0.9882    0.9608; 0.4579    0.7700    0.4643;  0.0000    0.2667    0.1059];
+    scatter(sk,ku,54,c,"filled","o",HandleVisibility="off");
+    colormap(gca,c);
+    cbar = colorbar;
+    cbar.Ticks = [0.17 0.5 0.83];
+    cbar.TickLabels = p;
+    cbar.Label.Position = [0.7 -0.05];
+elseif length(p) == 2
+    c = [0.9686    0.9882    0.9608; 0.0000    0.2667    0.1059];
+    scatter(sk,ku,54,c,"filled","o",HandleVisibility="off");
+    colormap(gca,c);
+    cbar = colorbar;
+    cbar.Ticks = [0.25 0.75];
+    cbar.TickLabels = p;
+    cbar.Label.Position = [0.7 -0.05];
+end
 cbar.Direction = "reverse";
-cbar.Ticks = 1:1:length(p);
-% cbar.TickLabels = p(1):10:p(end);
-cbar.TickLabels = p;
 cbar.Label.String = "P [dbar]";
-cbar.Label.Position = [0.7 1-0.35];
 cbar.Label.Rotation = 0;
-% hold on
-% add polynomial
-% [skS,id] = sort(sk);
-% kuS = ku(id);
-% [p,S] = polyfit(skS,kuS,2);
-% [f,delta] = polyval(p,skS,S);
-% plot(skS,f,'r-',DisplayName="Fit");
-% plot(skS,f+2*delta,'m--',DisplayName='95% Prediction Interval');
-% plot(skS,f-2*delta,'m--',HandleVisibility='off');
 hold off
 grid minor;
 ylim([1 kurtLimB]); xlim([skewLimA skewLimB]);
 xlabel('Skewness','FontSize',13,'Interpreter','latex'); ylabel('Kurtosis',FontSize=13,Interpreter='latex');
 lgd = legend('Location','best');
-% title(lgd,'Distributions');
-title('L1','Interpreter','latex','FontSize',13);
-% sgtitle("L2 chl-$a$ skewness-kurtosis 1988-2021","Interpreter","latex");
+title('chl-$a$'+tmpT,'Interpreter','latex','FontSize',13);
 exportgraphics(ax,"figures/L1/bottle/log/chla_ad_skKu.png");

@@ -5,19 +5,17 @@
 % Kolmogorov-Smirnov and more flexible than tests such as Shapiro-Wilks
 % which did not easily allow for testing of other distributions.
 
-clear; clc; close all; addpath("func\");
+clear; clc; close all;
+addpath("func\");
 set(groot, "defaultFigureUnits", "centimeters", "defaultFigurePosition", [3 3 15 15]);
 
 % Options and Test Cases.
 thresh = 30;                    % Threshold for A-D Test to be accepted
-principle = true;               % Main analysis: A-D Test complete time series
+principle = false;               % Main analysis: A-D Test complete time series
 seasonal = true;               % Seasonal analysis: A-D test applied to 
                                 % four seasons
-fourdist = true;               % Four distribution analysis: A-D test 
-                                % additionally applied to Weibull and
-                                % Gamma.
-showHistograms = true;         % Show histogram analysis (true/false).
-testSel = 2;                    % 2 = norm + logn (default), 
+showHistograms = false;         % Show histogram analysis (true/false).
+testSel = 4;                    % 2 = norm + logn (default), 
                                 % 4 = norm + logn + weib + gamm
 logAxes = true;                 % Output p-values as log values on x-axis
 if logAxes == true
@@ -41,7 +39,6 @@ end
 clear ctdData i;
 save output/mldVals.mat maxMld;
 
-
 %% Check histograms
 
 if showHistograms == true
@@ -54,7 +51,7 @@ if showHistograms == true
 
     % Import data; extract data within mixed layer.
     tmp = importdata(D);
-    [~,~,~,~,~,~,~,~,~,X_ML,p_ML] = L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes,0,true);
+    [~,~,~,~,~,~,~,X_ML,p_ML] = L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes,0,true);
     
     % Bin pressure
     pB = round(p_ML,-1);   
@@ -79,22 +76,18 @@ if principle == true
    
     % HPLC chl-a
     tmp = importdata("input/L1/hplcChla_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes);
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes);
     sgtitle("L1 chl-$a$","Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chla" + tmpT + ".png");
     
     % chl-b
     tmp = importdata("input/L1/chlb_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes);
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes);
     sgtitle("L1 chl-$b$","Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chlb" + tmpT + ".png");
     
     % Particulate Carbon
     tmp = importdata("input/L1/parc_89-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes);
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",logAxes);
     sgtitle("L1 Particulate Carbon","Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "pc" + tmpT + ".png");
-    clearvars -except maxMld lp thresh testSel seasonal fourdist;
 end
 
 %% Seasonal Analysis: A-D
@@ -104,112 +97,86 @@ if seasonal == true
     set(groot, "defaultFigureUnits", "centimeters", "defaultFigurePosition", [3 3 10 15]);
 
     %%% WINTER
-    tmpx = " Winter"; tmpT = "-ad-01";
+    tmpx = ":L1 Winter";
 
     % chla
     tmp = importdata("input/L1/hplcChla_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,1);
-    sgtitle("L1 chl-$a$" + tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chla" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,1);
+    sgtitle("chl-$a$" + tmpx,"Interpreter","latex");
+    clear tmp;
     
     % chlb (88-21)
     tmp = importdata("input\L1\chlb_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,1);
-    sgtitle("L1 chl-$b$"+tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chlb" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,1);
+    sgtitle("chl-$b$"+tmpx,"Interpreter","latex");
+    clear tmp;
     
     % Particulate Carbon (89-21)
     tmp = importdata("input\L1\parc_89-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,1);
-    sgtitle("L1 Particulate Carbon"+tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "pc" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,1);
+    sgtitle("Particulate Carbon"+tmpx,"Interpreter","latex");
+    clear tmp;
     
     %%% SPRING
-    tmpx = " Spring"; tmpT = "-ad-02";
+    tmpx = ": L1 Spring";
 
     % chla
     tmp = importdata("input/L1/hplcChla_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,2);
-    sgtitle("L1 chl-$a$" + tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chla" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,2);
+    sgtitle("chl-$a$" + tmpx,"Interpreter","latex");
+    clear tmp;
     
     % chlb (88-21)
     tmp = importdata("input\L1\chlb_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,2);
-    sgtitle("L1 chl-$b$"+tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chlb" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,2);
+    sgtitle("chl-$b$"+tmpx,"Interpreter","latex");
+    clear tmp;
     
     % Particulate Carbon (89-21)
     tmp = importdata("input\L1\parc_89-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,2);
-    sgtitle("L1 Particulate Carbon"+tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "pc" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,2);
+    sgtitle("Particulate Carbon"+tmpx,"Interpreter","latex");
+    clear tmp;
 
     %%% SUMMER
-    tmpx = " Summer"; tmpT = "-ad-03";
+    tmpx = ": L1 Summer";
 
     % chla
     tmp = importdata("input/L1/hplcChla_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,3);
-    sgtitle("L1 chl-$a$" + tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chla" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,3);
+    sgtitle("chl-$a$" + tmpx,"Interpreter","latex");
+    clear tmp;
 
     % chlb (88-21)
     tmp = importdata("input\L1\chlb_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,3);
-    sgtitle("L1 chl-$b$"+tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chlb" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,3);
+    sgtitle("chl-$b$"+tmpx,"Interpreter","latex");
+    clear tmp;
     
     % Particulate Carbon (89-21)
     tmp = importdata("input\L1\parc_89-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,3);
-    sgtitle("L1 Particulate Carbon"+tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "pc" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,3);
+    sgtitle("Particulate Carbon"+tmpx,"Interpreter","latex");
+    clear tmp;
     
     %%% AUTUMN
-    tmpx = " Autumn"; tmpT = "-ad-04";
+    tmpx = ": L1 Autumn"; tmpT = "-ad-04";
 
     % chla
     tmp = importdata("input/L1/hplcChla_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,4);
-    sgtitle("L1 chl-$a$" + tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chla" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,4);
+    sgtitle("chl-$a$" + tmpx,"Interpreter","latex");
+    clear tmp;
     
     % chlb (88-21)
     tmp = importdata("input\L1\chlb_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,4);
-    sgtitle("L1 chl-$b$"+tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chlb" + tmpT + ".png");
-    clear tmp ax;
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,4);
+    sgtitle("chl-$b$"+tmpx,"Interpreter","latex");
+    clear tmp;
     
     % Particulate Carbon (89-21)
     tmp = importdata("input\L1\parc_89-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,testSel,"ad",true,4);
-    sgtitle("L1 Particulate Carbon"+tmpx,"Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "pc" + tmpT + ".png");
-    clear tmp ax;
-end
-
-%% A-D but with Four Distributions
-if fourdist == true
-    set(groot, "defaultFigureUnits", "centimeters", "defaultFigurePosition", [3 3 15 15]);
-
-    % A-D
-    tmpT = "-ad-4dist";
-    
-    % HPLC chl-a
-    tmp = importdata("input/L1/hplcChla_88-21_150.txt");
-    ax = L1_helper(tmp,maxMld,thresh,4,"ad");
-    sgtitle("L1 chl-$a$: four distributions","Interpreter","latex");
-    exportgraphics(ax,"figures/L1/bottle/" + lp + "chla" + tmpT + ".png");
+    L1_helper(tmp,maxMld,thresh,testSel,"ad",true,4);
+    sgtitle("Particulate Carbon"+tmpx,"Interpreter","latex");
+    clear tmp;
 end

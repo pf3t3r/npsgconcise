@@ -10,7 +10,8 @@ function [ax,ks,obs,pB,X,ad] = L0_helper(tmp,threshold,hypTest,logAxis,season,fi
 % figSuppress = suppress output of figure. 
 %OUTPUT: ax = needed to save figure, ks = K-S p-value, obs = no. of 
 % observations, pB = binned pressure, X = output (cleaned) bottle
-% concentration, ad = A-D p-value
+% concentration, ad = A-D p-value. Any of these values can be left empty if
+% you just want to show the plots.
 
 meanDcm = load("datafiles/timeSeriesMeanDcm.mat").timeSeriesMeanDcm;
 meanPrc = load("datafiles\timeSeriesPrctl.mat").timeSeriesPrctl;
@@ -31,11 +32,11 @@ if nargin < 4
 end
 
 if nargin < 3
-    hypTest = 'ks';
+    hypTest = 'ad';
 end
 
 if nargin <2
-    threshold = 50;
+    threshold = 30;
 end
 tmpT = ""; alphaHy = 0.005;
 
@@ -55,8 +56,8 @@ else
     X = tmp(:,5);
 end
 n = length(pIn);
-nB = length(botId);
-n3 = length(X);
+% nB = length(botId);
+% n3 = length(X);
 
 if season ~= 0
     botId(botId==-9) = nan;
@@ -138,8 +139,6 @@ end
 
 n2 = 20;
 ks = nan(5,n2);
-%sk = nan(1,n2); ku = nan(1,n2);
-%rV = nan(10,n2); pV = nan(10,n2);
 obs = nan(1,n2);
 ad = nan(2,n2);
 
@@ -157,9 +156,6 @@ for i = 1:n2
             [~,ad(1,i)] = adtest(X_i,'Distribution','logn','alpha',0.005);
             [~,ad(2,i)] = adtest(X_i,'Distribution','norm','alpha',0.005);
         end
-        %[rV(:,i),pV(:,i)] = bbvuong(X_i);
-        %sk(i) = skewness(X_i);
-        %ku(i) = kurtosis(X_i);
     end
     obs(i) = length(X_i);
     clear X_i;
@@ -180,7 +176,6 @@ if figSuppress == false
     yticklabels({});
     set(gca,"YDir","reverse");
     xlabel("No. of Obs.",Interpreter="latex",FontSize=13);
-    % ylabel("P [dbar]",FontSize=15);
     
     subplot(1,3,[1 2])
     xline(alphaHy,'-','\color{black}\alpha=0.005',LineWidth=1.5,Color="#808080",HandleVisibility="off",LabelOrientation="horizontal",LabelHorizontalAlignment="center",FontSize=13); 
